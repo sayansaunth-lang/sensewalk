@@ -1,0 +1,46 @@
+# Python (Raspberry Pi side)
+__pycache__/
+*.py[cod]
+*.egg-info/
+venv/
+.venv/
+env/
+.env
+
+# PlatformIO / Arduino (ESP32 side)
+.pio/
+.pioenvs/
+.piolibdeps/
+*.hex
+*.bin
+build/
+
+# Model weights & large binary assets (track via releases or shared drive instead)
+*.caffemodel
+*.pb
+*.tflite
+*.weights
+*.pt
+*.onnx
+
+# Video / large media test captures
+*.mp4
+*.avi
+*.mov
+test/data/*.mp4
+test/data/*.avi
+
+# CAD autosave / temp files
+*.f3d.lock
+~$*
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Secrets
+*.env
+secrets.*
