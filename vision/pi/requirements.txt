@@ -1,0 +1,12 @@
+# Raspberry Pi vision pipeline dependencies (C2 track — see docs/TEAM.md).
+# Install inside a venv, never into system Python:
+#   python3 -m venv venv && source venv/bin/activate && pip install -r vision/pi/requirements.txt
+#
+# picamera2 is normally preinstalled on Raspberry Pi OS via apt
+# (python3-picamera2) rather than pip — pip install is only a dev-machine
+# fallback and may not have working libcamera bindings off-Pi.
+
+opencv-python-headless>=4.9,<5
+numpy>=1.26,<3
+pytesseract>=0.3.10,<1
+pyserial>=3.5,<4
