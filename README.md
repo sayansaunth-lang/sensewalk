@@ -46,17 +46,38 @@ Open a pull request into `main` for every merge — get at least one teammate's 
 
 1. Clone the repo, pick your branch above.
 2. Read your track in the learning roadmap (ask whoever holds the SENSEWALK Learning Roadmap PDF) before writing code — B1/B2 for firmware, C1v/C2v for vision, D1 for comms, E1/E2 for speech/test.
-3. Firmware setup: Arduino IDE or PlatformIO targeting ESP32-S3, add libraries as you need them to `firmware/esp32/lib/`.
-4. Pi setup: Raspberry Pi OS (64-bit), Python 3.10+, work inside a venv — don't install packages into system Python.
+3. **Firmware** (PlatformIO, targeting ESP32-S3) — see [firmware/esp32/README.md](firmware/esp32/README.md):
+   ```bash
+   pip install platformio
+   cd firmware/esp32
+   pio run                # build
+   pio test -e native     # run the host-native unit tests (no hardware needed)
+   ```
+4. **Python side** (Pi vision pipeline, comms, fusion, speech) — work inside a venv, don't install into system Python:
    ```bash
    python3 -m venv venv
    source venv/bin/activate
-   pip install opencv-python pytesseract pyttsx3 pyserial
+   pip install -r requirements-dev.txt
+   python -m pytest        # run the full test suite (comms, fusion, speech, vision logic)
    ```
-5. Log every bench test (sensor calibration, braking trials, OCR success rate) into `test/` as you go — the final report needs real measured numbers, not estimates.
+   On the Pi itself, also install `vision/pi/requirements.txt` and run `vision/pi/models/download_models.sh` once to fetch the MobileNet-SSD weights (gitignored — not committed).
+5. Log every bench test (sensor calibration, braking trials, OCR success rate) into `test/` as you go — see [test/README.md](test/README.md) and [test/FIELD_TEST_PLAN.md](test/FIELD_TEST_PLAN.md). The final report needs real measured numbers, not estimates.
+
+## What's implemented
+
+- **`comms/`** — UART wire protocol (comma-separated, checksummed) fully specified in [PROTOCOL.md](comms/PROTOCOL.md), with parity implementations and unit tests on both sides: [`comms/python/`](comms/python/) (Pi) and [`firmware/esp32/src/comms/`](firmware/esp32/src/comms/) (ESP32).
+- **`fusion/`** — the sensor-fusion state machine ([`state_machine.py`](fusion/state_machine.py)) implementing the priority rules and 5-state cycle from ARCHITECTURE.md, unit tested against combined-hazard scenarios.
+- **`vision/pi/`** — camera abstraction (Pi Camera v3 via picamera2, or a webcam/video file for dev-machine testing), MobileNet-SSD detection, OCR with a sign-detection trigger condition, and a `main.py` wiring it all together with UART + speech.
+- **`speech/`** — fixed alert-phrase vocabulary, offline TTS wrapper with latency logging, and a watchdog-thread piezo buzzer fallback that fires independently of TTS state.
+- **`firmware/esp32/`** — FreeRTOS task structure (prioritised safety/ultrasonic/IMU/comms tasks), the hard sub-50ms safety override, and drivers for every sensor/actuator in the BOM. Pure-logic modules (hazard thresholds, UART codec) are unit tested on the host via PlatformIO's native test environment. See its own [README](firmware/esp32/README.md) for what's stubbed vs. calibrated.
+- **CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) — runs the Python test suite, builds the firmware, and runs the firmware's native unit tests on every push/PR.
+
+## What's NOT yet done (by design — this is a scaffold, not a calibrated build)
+
+Every `TODO(calibrate)` threshold in [`firmware/esp32/include/config.h`](firmware/esp32/include/config.h) and the defaults in [`fusion/state_machine.py`](fusion/state_machine.py) are starting points, not measurements — Phase 1/2 bench calibration against real sensor data (B2/D2 in the learning roadmap) still has to happen and the numbers here have to be replaced, not trusted as-is. No MobileNet-SSD/OCR model weights are committed (see `vision/pi/models/download_models.sh`). Mechanical/CAD work (`cad/`) hasn't started.
 
 ## Status
 
-Phase 1 (procurement + sensor bench calibration) — not yet started.
+Software scaffold for all five phases is in place; Phase 1 (procurement + sensor bench calibration against real hardware) has not started.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the system diagram and [docs/BOM.md](docs/BOM.md) for the full bill of materials and budget.

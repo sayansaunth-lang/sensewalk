@@ -1,0 +1,14 @@
+# Aggregated dependencies for running the full Python test suite on a dev
+# machine or in CI (comms/, fusion/, speech/, vision/pi/). Install with:
+#   pip install -r requirements-dev.txt
+#
+# Excludes Pi/hardware-only packages (RPi.GPIO, picamera2) — those are
+# lazily imported and gracefully degrade to a logged no-op when absent, by
+# design (see speech/buzzer_fallback.py, vision/pi/src/camera.py).
+
+pytest>=8.0,<9
+opencv-python-headless>=4.9,<5
+numpy>=1.26,<3
+pytesseract>=0.3.10,<1
+pyserial>=3.5,<4
+pyttsx3>=2.90,<3

@@ -41,12 +41,25 @@ Dual-core split: safety-critical sensing/actuation on the ESP32-S3 (deterministi
 
 ## UART protocol
 
-Spec lives in [`comms/PROTOCOL.md`](../comms/PROTOCOL.md) — write it and get C1 + C2 sign-off before either side implements it.
+Spec lives in [`comms/PROTOCOL.md`](../comms/PROTOCOL.md), implemented on both sides ([`comms/python/`](../comms/python/), [`firmware/esp32/src/comms/`](../firmware/esp32/src/comms/)) with unit tests on each.
+
+## Code map
+
+| Concern | Lives in |
+|---|---|
+| Hard safety override, sensor drivers, actuator drivers | `firmware/esp32/src/{safety,sensors,actuators}/` |
+| FreeRTOS task priorities | `firmware/esp32/src/tasks.cpp` |
+| UART wire codec (both languages) | `comms/PROTOCOL.md`, `comms/python/protocol.py`, `firmware/esp32/src/comms/uart_protocol.h` |
+| Fusion state machine | `fusion/state_machine.py` |
+| Vision (camera/detection/OCR) | `vision/pi/src/` |
+| Speech + buzzer fallback | `speech/` |
+| Test tooling & logged results | `test/` |
 
 ## Open questions / decisions log
 
 _Track decisions here as they're made (e.g., final message format, chosen fall-detection thresholds, camera mount angle) so the reasoning isn't lost by Phase 5._
 
-- [ ] UART message format finalized (comma-separated vs JSON-lines)
-- [ ] Fall-detection thresholds set from real controlled-drop data
+- [x] UART message format finalized — comma-separated (Option A), see `comms/PROTOCOL.md` for the rationale
+- [ ] Fall-detection thresholds set from real controlled-drop data (currently `TODO(calibrate)` placeholders in `firmware/esp32/include/config.h`)
+- [ ] Ground-dropoff / obstacle-proximity thresholds set from real bench data (same file)
 - [ ] Camera mount height/angle decided (M1 + C2)
