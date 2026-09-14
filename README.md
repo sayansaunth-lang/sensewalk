@@ -61,7 +61,10 @@ Open a pull request into `main` for every merge — get at least one teammate's 
    python -m pytest        # run the full test suite (comms, fusion, speech, vision logic)
    ```
    On the Pi itself, also install `vision/pi/requirements.txt` and run `vision/pi/models/download_models.sh` once to fetch the MobileNet-SSD weights (gitignored — not committed).
-5. Log every bench test (sensor calibration, braking trials, OCR success rate) into `test/` as you go — see [test/README.md](test/README.md) and [test/FIELD_TEST_PLAN.md](test/FIELD_TEST_PLAN.md). The final report needs real measured numbers, not estimates.
+5. **Before the ESP32 exists or is wired up yet**, develop/demo the Pi side against a scripted synthetic sensor feed instead of real UART: `python3 vision/pi/src/main.py --camera opencv --camera-source 0 --sim --preview` (see [comms/python/sim_feed.py](comms/python/sim_feed.py)).
+6. **Real bench calibration** (once the ESP32 + sensors are wired up): [test/bench_logger.py](test/bench_logger.py) gives a live dashboard and writes a ground-truth-labeled CSV while you walk test scenarios, ready for [test/analyze_detection_log.py](test/analyze_detection_log.py).
+7. **Deploying to the Pi for real field tests**: copy [`vision/pi/sensewalk.service`](vision/pi/sensewalk.service) to `/etc/systemd/system/`, adjust the paths for your checkout location, then `sudo systemctl enable --now sensewalk`.
+8. Log every bench test (sensor calibration, braking trials, OCR success rate) into `test/` as you go — see [test/README.md](test/README.md) and [test/FIELD_TEST_PLAN.md](test/FIELD_TEST_PLAN.md). The final report needs real measured numbers, not estimates.
 
 ## What's implemented
 
@@ -70,6 +73,10 @@ Open a pull request into `main` for every merge — get at least one teammate's 
 - **`vision/pi/`** — camera abstraction (Pi Camera v3 via picamera2, or a webcam/video file for dev-machine testing), MobileNet-SSD detection, OCR with a sign-detection trigger condition, and a `main.py` wiring it all together with UART + speech.
 - **`speech/`** — fixed alert-phrase vocabulary, offline TTS wrapper with latency logging, and a watchdog-thread piezo buzzer fallback that fires independently of TTS state.
 - **`firmware/esp32/`** — FreeRTOS task structure (prioritised safety/ultrasonic/IMU/comms tasks), the hard sub-50ms safety override, and drivers for every sensor/actuator in the BOM. Pure-logic modules (hazard thresholds, UART codec) are unit tested on the host via PlatformIO's native test environment. See its own [README](firmware/esp32/README.md) for what's stubbed vs. calibrated.
+- **`comms/python/sim_feed.py`** — a scripted synthetic ESP32 telemetry feed so the whole Pi-side stack can be developed and demoed before the ESP32/sensors exist or are wired up (`vision/pi/src/main.py --sim`).
+- **`test/bench_logger.py`** — live sensor dashboard + ground-truth-labeled CSV logger, turning the "log 50 test walks" deliverables into a tool the team actually runs, feeding straight into `test/analyze_detection_log.py`.
+- **`docs/WIRING.md`** / **`docs/DATASHEET_GOTCHAS.md`** — concrete pin-to-component wiring reference and pre-filled per-component gotcha sheets (S3 in the learning roadmap), to verify against the actual purchased parts rather than starting from a blank page.
+- **`vision/pi/sensewalk.service`** — systemd unit for running the pipeline automatically on Pi boot during real field tests.
 - **CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) — runs the Python test suite, builds the firmware, and runs the firmware's native unit tests on every push/PR.
 
 ## What's NOT yet done (by design — this is a scaffold, not a calibrated build)

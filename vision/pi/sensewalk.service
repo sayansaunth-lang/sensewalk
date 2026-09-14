@@ -1,0 +1,18 @@
+[Unit]
+Description=SENSEWALK vision/fusion/speech pipeline
+After=multi-user.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/sensewalk
+ExecStart=/home/pi/sensewalk/venv/bin/python3 vision/pi/src/main.py --camera picamera2 --serial-port /dev/serial0
+Restart=on-failure
+RestartSec=3
+# Field tests should always end up in the repo's test/logs directory,
+# regardless of what directory systemd itself runs from.
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

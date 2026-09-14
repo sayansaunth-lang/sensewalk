@@ -9,6 +9,14 @@ drawn live; run headless (default) on the Pi during real field tests.
     python3 vision/pi/src/main.py --camera picamera2 --serial-port /dev/serial0
     python3 vision/pi/src/main.py --camera opencv --camera-source 0 --preview   # dev machine, webcam
     python3 vision/pi/src/main.py --camera opencv --camera-source test/data/sample.mp4 --preview
+
+Before the ESP32 side exists or is wired up, run with --sim to drive the
+fusion/speech/haptics path off a scripted synthetic sensor feed
+(comms/python/sim_feed.py) instead of real UART — the vision detection
+itself still runs against a real camera/webcam/video file, only the
+ESP32-side telemetry (ToF/ultrasonic/IMU/grip) is faked:
+
+    python3 vision/pi/src/main.py --camera opencv --camera-source 0 --sim --preview
 """
 from __future__ import annotations
 
@@ -43,7 +51,16 @@ def main() -> int:
     parser.add_argument("--preview", action="store_true", help="show an on-screen window with boxes + FPS")
     parser.add_argument("--no-ocr", action="store_true", help="disable OCR even when a sign-like region is seen")
     parser.add_argument("--no-speech", action="store_true", help="disable TTS output (useful for headless dev runs)")
+    parser.add_argument(
+        "--sim",
+        action="store_true",
+        help="drive ESP32-side telemetry from a scripted synthetic feed instead of real UART "
+        "(comms/python/sim_feed.py) — for developing/demoing before hardware is wired up",
+    )
     args = parser.parse_args()
+
+    if args.sim and args.serial_port:
+        parser.error("--sim and --serial-port are mutually exclusive")
 
     try:
         args.camera_source = int(args.camera_source)
@@ -57,7 +74,14 @@ def main() -> int:
     fps_counter = FPSCounter()
 
     link = None
+    sim_feed = None
     snapshot = SensorSnapshot()
+    if args.sim:
+        from comms.python.sim_feed import SimulatedFeed
+
+        sim_feed = SimulatedFeed()
+        snapshot = sim_feed.tick()
+        print("Running with --sim: ESP32 telemetry is scripted, not real (see comms/python/sim_feed.py)")
     if args.serial_port:
         link = SerialLink(args.serial_port)
         link.on_message("tof_fwd", lambda m: setattr(snapshot, "tof_fwd_mm", m.int_value()))
@@ -79,7 +103,10 @@ def main() -> int:
     print("SENSEWALK vision pipeline running. Ctrl+C to stop.")
     try:
         for frame in camera.frames():
-            if link is not None:
+            if sim_feed is not None:
+                snapshot = sim_feed.tick()
+                snapshot.mcu_alive = True
+            elif link is not None:
                 link.poll()
                 snapshot.mcu_alive = link.stats.mcu_alive
 
