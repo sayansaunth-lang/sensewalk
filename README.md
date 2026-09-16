@@ -46,13 +46,15 @@ Open a pull request into `main` for every merge — get at least one teammate's 
 
 1. Clone the repo, pick your branch above.
 2. Read your track in the learning roadmap (ask whoever holds the SENSEWALK Learning Roadmap PDF) before writing code — B1/B2 for firmware, C1v/C2v for vision, D1 for comms, E1/E2 for speech/test.
-3. **Firmware** (PlatformIO, targeting ESP32-S3) — see [firmware/esp32/README.md](firmware/esp32/README.md):
-   ```bash
-   pip install platformio
-   cd firmware/esp32
-   pio run                # build
-   pio test -e native     # run the host-native unit tests (no hardware needed)
-   ```
+3. **Firmware** (targeting ESP32-S3) — two ways to build it, same logic either way:
+   - **PlatformIO** (canonical, CI-tested) — see [firmware/esp32/README.md](firmware/esp32/README.md):
+     ```bash
+     pip install platformio
+     cd firmware/esp32
+     pio run                # build
+     pio test -e native     # run the host-native unit tests (no hardware needed)
+     ```
+   - **Arduino IDE** (flattened mirror, for whoever prefers the GUI) — see [firmware/esp32_arduino_ide/README.md](firmware/esp32_arduino_ide/README.md) for board package + library setup. Flash `SENSEWALK_blink_test/` first to confirm your toolchain works, then `SENSEWALK_ESP32/` for the real firmware.
 4. **Python side** (Pi vision pipeline, comms, fusion, speech) — work inside a venv, don't install into system Python:
    ```bash
    python3 -m venv venv
@@ -73,6 +75,7 @@ Open a pull request into `main` for every merge — get at least one teammate's 
 - **`vision/pi/`** — camera abstraction (Pi Camera v3 via picamera2, or a webcam/video file for dev-machine testing), MobileNet-SSD detection, OCR with a sign-detection trigger condition, and a `main.py` wiring it all together with UART + speech.
 - **`speech/`** — fixed alert-phrase vocabulary, offline TTS wrapper with latency logging, and a watchdog-thread piezo buzzer fallback that fires independently of TTS state.
 - **`firmware/esp32/`** — FreeRTOS task structure (prioritised safety/ultrasonic/IMU/comms tasks), the hard sub-50ms safety override, and drivers for every sensor/actuator in the BOM. Pure-logic modules (hazard thresholds, UART codec) are unit tested on the host via PlatformIO's native test environment. See its own [README](firmware/esp32/README.md) for what's stubbed vs. calibrated.
+- **`firmware/esp32_arduino_ide/`** — the same firmware, flattened into an Arduino-IDE-compatible sketch (no subfolders) for teammates who prefer the Arduino IDE over PlatformIO. Includes a standalone blink/serial sanity-check sketch to verify the toolchain before flashing the full firmware.
 - **`comms/python/sim_feed.py`** — a scripted synthetic ESP32 telemetry feed so the whole Pi-side stack can be developed and demoed before the ESP32/sensors exist or are wired up (`vision/pi/src/main.py --sim`).
 - **`test/bench_logger.py`** — live sensor dashboard + ground-truth-labeled CSV logger, turning the "log 50 test walks" deliverables into a tool the team actually runs, feeding straight into `test/analyze_detection_log.py`.
 - **`docs/WIRING.md`** / **`docs/DATASHEET_GOTCHAS.md`** — concrete pin-to-component wiring reference and pre-filled per-component gotcha sheets (S3 in the learning roadmap), to verify against the actual purchased parts rather than starting from a blank page.

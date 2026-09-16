@@ -5,8 +5,8 @@
 // ESP32 Arduino core v3.x replaced the channel-based LEDC API
 // (ledcSetup/ledcAttachPin/ledcWrite(channel,...)) with a pin-based one
 // (ledcAttach/ledcWrite(pin,...)) — the #if below supports building against
-// either core major version, since it's easy to end up on either one
-// depending on when a teammate installs the board package.
+// either core major version, since Arduino IDE's Boards Manager may offer
+// either depending on when you install it.
 #pragma once
 
 #include <Arduino.h>
