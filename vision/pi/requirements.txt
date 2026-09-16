@@ -10,3 +10,16 @@ opencv-python-headless>=4.9,<5
 numpy>=1.26,<3
 pytesseract>=0.3.10,<1
 pyserial>=3.5,<4
+
+# Optional: only needed for --detector-backend tflite (detector.py's
+# TFLiteSSDDetector), the lighter-weight option recommended for
+# constrained hardware like a Raspberry Pi 3B with 1GB RAM — see
+# docs/PI3B_LOW_RAM_SETUP.md. Not needed for the default opencv-dnn backend.
+#
+# On Raspberry Pi OS, pip is preconfigured to use piwheels.org, which hosts
+# a prebuilt tflite-runtime wheel — this should just work:
+#   pip install tflite-runtime
+# If no wheel is available for your exact OS/Python version, either fall
+# back to the default opencv-dnn backend (no extra dependency needed), or
+# install full `tensorflow` instead (much heavier — likely impractical on
+# 1GB RAM) which also provides a compatible tf.lite.Interpreter.

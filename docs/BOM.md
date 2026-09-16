@@ -2,6 +2,18 @@
 
 Source: SENSEWALK Research Report, Aug 2026. Prices are Indian retail estimates (Robu.in, Quartz Components, Amazon.in) at time of writing — re-check before ordering.
 
+## Hardware actually in hand (substituted for budget reasons)
+
+The team is building with a **Raspberry Pi 3B (1GB)** instead of the Pi 4 (2GB) the original report specced, alongside the ESP32-S3 and Pi Camera Module 3 as planned. This is a real substitution, not a hypothetical — see [`docs/PI3B_LOW_RAM_SETUP.md`](PI3B_LOW_RAM_SETUP.md) for the OS/setup/performance changes this requires. It saves real money (~₹2,000+, since a Pi 3B is commonly available secondhand or at a lower price point than a Pi 4) at the cost of noticeably lower vision FPS — acceptable here because vision is a non-safety-critical layer on top of the ESP32's independent ToF/ultrasonic braking (see `docs/ARCHITECTURE.md` design rule #1).
+
+| Component | Originally specced | Actually using | Why |
+|---|---|---|---|
+| Core Compute | Raspberry Pi 4 Model B (2GB), ₹4,200 | Raspberry Pi 3B (1GB) | Already owned / cheaper — see PI3B_LOW_RAM_SETUP.md for the trade-offs and required tuning |
+| Visual Perception | Pi Camera Module v3 (Wide), ₹2,400 | Pi Camera Module 3 (non-Wide) | Already owned — works the same via libcamera/picamera2, narrower field of view than the Wide variant |
+| Real-time MCU | ESP32-S3, ₹450 | ESP32-S3 | Unchanged |
+
+The table below is kept as the original aspirational spec for reference and for costing out everything else (sensors, actuators, power, chassis) — those parts are unaffected by the Pi substitution.
+
 ## Core BOM
 
 | Category | Component / Module | Qty | Unit Price (₹) | Total (₹) |

@@ -17,6 +17,12 @@ itself still runs against a real camera/webcam/video file, only the
 ESP32-side telemetry (ToF/ultrasonic/IMU/grip) is faked:
 
     python3 vision/pi/src/main.py --camera opencv --camera-source 0 --sim --preview
+
+On constrained hardware (e.g. a Raspberry Pi 3B with 1GB RAM instead of a
+Pi 4 — see docs/PI3B_LOW_RAM_SETUP.md), two flags matter most:
+
+    --detector-backend tflite       # lighter-weight quantized model than the default opencv-dnn
+    --process-every-n-frames 3      # only run detection on every 3rd frame; camera still streams live
 """
 from __future__ import annotations
 
@@ -31,7 +37,12 @@ from comms.python.serial_link import SerialLink  # noqa: E402
 from fusion.state_machine import SensorFusion, SensorSnapshot  # noqa: E402
 from speech.tts import AlertSpeaker  # noqa: E402
 from vision.pi.src.camera import FPSCounter, OpenCVCameraSource, Picamera2Source  # noqa: E402
-from vision.pi.src.detector import MobileNetSSDDetector, any_hazard_relevant  # noqa: E402
+from vision.pi.src.detector import (  # noqa: E402
+    MobileNetSSDDetector,
+    TFLiteSSDDetector,
+    any_hazard_relevant,
+    draw_detections,
+)
 from vision.pi.src.ocr import read_sign, should_attempt_ocr  # noqa: E402
 
 
@@ -41,12 +52,33 @@ def build_camera(args):
     return OpenCVCameraSource(args.camera_source, size=(args.width, args.height))
 
 
+def build_detector(args):
+    if args.detector_backend == "tflite":
+        return TFLiteSSDDetector()
+    return MobileNetSSDDetector()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--camera", choices=["picamera2", "opencv"], default="opencv")
-    parser.add_argument("--camera-source", default=0, help="OpenCV backend only: device index or file path")
+    parser.add_argument("--camera-source", default=0, help="OpenCV backend only: device index, file path, or stream URL")
     parser.add_argument("--width", type=int, default=640)
     parser.add_argument("--height", type=int, default=480)
+    parser.add_argument(
+        "--detector-backend",
+        choices=["opencv-dnn", "tflite"],
+        default="opencv-dnn",
+        help="opencv-dnn (default, simplest setup) or tflite (lighter-weight, "
+        "recommended on constrained hardware — see docs/PI3B_LOW_RAM_SETUP.md)",
+    )
+    parser.add_argument(
+        "--process-every-n-frames",
+        type=int,
+        default=1,
+        help="only run detection/OCR on every Nth frame (default 1 = every frame); "
+        "raise this on slower hardware — the camera still streams at full rate, "
+        "only the expensive inference calls are skipped",
+    )
     parser.add_argument("--serial-port", default=None, help="e.g. /dev/serial0 — omit to run vision-only, no UART")
     parser.add_argument("--preview", action="store_true", help="show an on-screen window with boxes + FPS")
     parser.add_argument("--no-ocr", action="store_true", help="disable OCR even when a sign-like region is seen")
@@ -61,14 +93,16 @@ def main() -> int:
 
     if args.sim and args.serial_port:
         parser.error("--sim and --serial-port are mutually exclusive")
+    if args.process_every_n_frames < 1:
+        parser.error("--process-every-n-frames must be >= 1")
 
     try:
         args.camera_source = int(args.camera_source)
     except (TypeError, ValueError):
-        pass  # a file path, leave as string
+        pass  # a file path or stream URL, leave as string
 
     camera = build_camera(args)
-    detector = MobileNetSSDDetector()
+    detector = build_detector(args)
     fusion = SensorFusion()
     speaker = None if args.no_speech else AlertSpeaker()
     fps_counter = FPSCounter()
@@ -100,7 +134,10 @@ def main() -> int:
         link.on_message("grip", on_grip)
         link.open()
 
-    print("SENSEWALK vision pipeline running. Ctrl+C to stop.")
+    print(f"SENSEWALK vision pipeline running (backend={args.detector_backend}, "
+          f"every {args.process_every_n_frames} frame(s)). Ctrl+C to stop.")
+    frame_index = 0
+    detections: list = []
     try:
         for frame in camera.frames():
             if sim_feed is not None:
@@ -110,18 +147,22 @@ def main() -> int:
                 link.poll()
                 snapshot.mcu_alive = link.stats.mcu_alive
 
-            detections = detector.detect(frame)
-            hazard_det = any_hazard_relevant(detections)
-            snapshot.vision_person_nearby = hazard_det is not None and hazard_det.label == "person"
+            run_inference = (frame_index % args.process_every_n_frames) == 0
+            frame_index += 1
 
-            snapshot.ocr_text = None
-            if not args.no_ocr and should_attempt_ocr(frame):
-                try:
-                    result = read_sign(frame)
-                    if result.text and result.mean_confidence > 40:
-                        snapshot.ocr_text = result.text
-                except RuntimeError:
-                    pass  # tesseract not installed on this machine — skip silently
+            if run_inference:
+                detections = detector.detect(frame)
+                hazard_det = any_hazard_relevant(detections)
+                snapshot.vision_person_nearby = hazard_det is not None and hazard_det.label == "person"
+
+                snapshot.ocr_text = None
+                if not args.no_ocr and should_attempt_ocr(frame):
+                    try:
+                        result = read_sign(frame)
+                        if result.text and result.mean_confidence > 40:
+                            snapshot.ocr_text = result.text
+                    except RuntimeError:
+                        pass  # tesseract not installed on this machine — skip silently
 
             decision = fusion.update(snapshot)
             fps = fps_counter.tick()
@@ -137,7 +178,7 @@ def main() -> int:
             if args.preview:
                 import cv2
 
-                MobileNetSSDDetector.draw_detections(frame, detections)
+                draw_detections(frame, detections)
                 cv2.putText(
                     frame, f"FPS: {fps:.1f}  state: {decision.state.name}",
                     (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2,
