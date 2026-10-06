@@ -34,6 +34,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from comms.python.serial_link import SerialLink  # noqa: E402
+from emergency.notifier import numbers_from_env  # noqa: E402
 from fusion.state_machine import SensorFusion, SensorSnapshot  # noqa: E402
 from speech.tts import AlertSpeaker  # noqa: E402
 from vision.pi.src.camera import FPSCounter, OpenCVCameraSource, Picamera2Source  # noqa: E402
@@ -102,6 +103,19 @@ def main() -> int:
         help="drive ESP32-side telemetry from a scripted synthetic feed instead of real UART "
         "(comms/python/sim_feed.py) — for developing/demoing before hardware is wired up",
     )
+    parser.add_argument("--gsm-port", default=None, help="SIM800L serial port (e.g. /dev/ttyUSB1). Enables fall -> SMS alerts")
+    parser.add_argument("--gsm-baud", type=int, default=9600)
+    parser.add_argument("--gps-port", default=None, help="NEO-6M serial port (e.g. /dev/ttyUSB0); adds a map link to the SMS")
+    parser.add_argument("--gps-baud", type=int, default=9600)
+    parser.add_argument(
+        "--emergency-number", action="append", default=[], metavar="+91XXXXXXXXXX",
+        help="who to text on a confirmed fall (repeatable). Falls back to the "
+        "SENSEWALK_EMERGENCY_NUMBERS environment variable, so numbers never need to live in code",
+    )
+    parser.add_argument(
+        "--fall-confirm-s", type=float, default=10.0,
+        help="seconds the user has to grip the handle to cancel a detected fall before the SMS is sent",
+    )
     args = parser.parse_args()
 
     if args.sim and args.serial_port:
@@ -127,6 +141,33 @@ def main() -> int:
     speaker = None if args.no_speech else AlertSpeaker()
     fps_counter = FPSCounter()
 
+    coordinator = None
+    if args.gsm_port:
+        import serial
+
+        from emergency.coordinator import EmergencyCoordinator
+        from emergency.nmea import GpsReader
+        from emergency.notifier import EmergencyNotifier
+        from emergency.sim800 import Sim800
+
+        numbers = args.emergency_number or numbers_from_env()
+        if not numbers:
+            parser.error("--gsm-port needs at least one --emergency-number (or SENSEWALK_EMERGENCY_NUMBERS)")
+        gps_reader = None
+        if args.gps_port:
+            import threading
+
+            gps_reader = GpsReader()
+            threading.Thread(
+                target=gps_reader.run,
+                args=(serial.Serial(args.gps_port, args.gps_baud, timeout=0.5), threading.Event()),
+                daemon=True,
+            ).start()
+        gsm = Sim800(serial.Serial(args.gsm_port, args.gsm_baud, timeout=0.2))
+        coordinator = EmergencyCoordinator(EmergencyNotifier(gsm, gps_reader, numbers), args.fall_confirm_s)
+        print(f"Emergency alerts ON: {len(numbers)} recipient(s), {args.fall_confirm_s:.0f}s cancel window, "
+              f"GPS {'on' if gps_reader else 'off'}")
+
     link = None
     sim_feed = None
     snapshot = SensorSnapshot()
@@ -143,7 +184,7 @@ def main() -> int:
         link.on_message("us_l", lambda m: setattr(snapshot, "us_l_cm", m.int_value()))
         link.on_message("us_c", lambda m: setattr(snapshot, "us_c_cm", m.int_value()))
         link.on_message("us_r", lambda m: setattr(snapshot, "us_r_cm", m.int_value()))
-        link.on_message("fall", lambda m: setattr(snapshot, "fall_flag", bool(m.int_value())))
+        link.on_message("fall", lambda m: coordinator.report_fall() if (coordinator and m.int_value()) else None)
 
         def on_grip(m):
             mask = m.int_value()
@@ -158,6 +199,9 @@ def main() -> int:
           f"every {args.process_every_n_frames} frame(s)). Ctrl+C to stop.")
     frame_index = 0
     detections: list = []
+    # Vision results persist between inference frames. Re-applying them every frame
+    # matters when --process-every-n-frames > 1 or --sim rebuilds the snapshot each tick.
+    vision_person, vision_ground, ocr_last = False, None, None
     try:
         for frame in camera.frames():
             if sim_feed is not None:
@@ -166,6 +210,9 @@ def main() -> int:
             elif link is not None:
                 link.poll()
                 snapshot.mcu_alive = link.stats.mcu_alive
+                if coordinator is not None:
+                    # The ESP32 only ever sends fall,1; the latch turns that into a flag that clears.
+                    snapshot.fall_flag = coordinator.fall_active
 
             run_inference = (frame_index % args.process_every_n_frames) == 0
             frame_index += 1
@@ -175,30 +222,45 @@ def main() -> int:
                 frame_h = frame.shape[0]
                 # "nearby" = apparent size, a crude proxy (see detector.NEARBY_MIN_HEIGHT_FRACTION);
                 # real distance comes from the ESP32's ToF/ultrasonic sensors.
-                snapshot.vision_person_nearby = person_confirm.observe(
-                    nearest_person(detections, frame_h) is not None
-                )
+                vision_person = person_confirm.observe(nearest_person(detections, frame_h) is not None)
                 if hazard_detector is not None:
                     hazard_dets = hazard_detector.detect(frame)
                     ground = find_ground_hazard(hazard_dets)
                     confirmed = ground_confirm.observe(ground is not None)
-                    snapshot.vision_ground_hazard = ground.label if (ground and confirmed) else None
+                    vision_ground = ground.label if (ground and confirmed) else None
                     detections = detections + hazard_dets
 
-                snapshot.ocr_text = None
+                ocr_last = None
                 if not args.no_ocr and should_attempt_ocr(frame):
                     try:
                         result = read_sign(frame)
                         if result.text and result.mean_confidence > 40:
-                            snapshot.ocr_text = result.text
-                    except RuntimeError:
-                        pass  # tesseract not installed on this machine — skip silently
+                            ocr_last = result.text
+                    except RuntimeError as exc:
+                        print(f"[ocr] disabled for this run: {exc}")
+                        args.no_ocr = True  # don't pay the preprocessing cost on every frame
+
+            snapshot.vision_person_nearby = vision_person
+            snapshot.vision_ground_hazard = vision_ground
+            snapshot.ocr_text = ocr_last
 
             decision = fusion.update(snapshot)
             fps = fps_counter.tick()
 
-            if decision.alert_phrase_key and speaker is not None:
-                speaker.speak(decision.alert_phrase_key)
+            if coordinator is not None:
+                coordinator.update(grip_present=snapshot.grip_left or snapshot.grip_right)
+                for event in coordinator.pop_events():
+                    print(f"[emergency] {event}")
+                    key = {"countdown": "fall_countdown", "sent": "alert_sent", "failed": "alert_failed"}[event]
+                    if speaker is not None:
+                        speaker.speak(key, min_repeat_interval_s=0)
+
+            key = decision.alert_phrase_key
+            if key == "fall_alert" and coordinator is not None:
+                key = None  # the countdown/sent/failed phrases above replace the premature "sending alert"
+            if key and speaker is not None:
+                # sign_read's template needs the recognised text; every other phrase ignores it
+                speaker.speak(key, text=snapshot.ocr_text or "")
 
             if link is not None:
                 left = 200 if (snapshot.vision_person_nearby or snapshot.vision_ground_hazard) else 0

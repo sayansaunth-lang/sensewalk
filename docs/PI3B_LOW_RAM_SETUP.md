@@ -37,13 +37,13 @@ You can lower this back down after setup is done — running the actual pipeline
 Raspberry Pi OS's `pip` is preconfigured to pull from [piwheels.org](https://www.piwheels.org/), which hosts prebuilt ARM wheels for OpenCV and friends — a plain `pip install` should take a couple of minutes, not the hours a from-source build would take on a 3B:
 
 ```bash
-python3 -m venv venv
+sudo apt install python3-picamera2 --no-install-recommends
+python3 -m venv --system-site-packages venv   # --system-site-packages is REQUIRED: picamera2 comes from apt
 source venv/bin/activate
 pip install -r vision/pi/requirements.txt
-sudo apt install python3-picamera2 --no-install-recommends
 ```
 
-(`picamera2` is best installed via `apt`, not `pip`, so it's correctly linked against the system libcamera — see the comment already in `vision/pi/requirements.txt`.)
+(`picamera2` is installed via `apt`, not `pip`, so it is linked against the system libcamera. A plain `python3 -m venv` cannot see apt-installed packages, so the venv must be created with `--system-site-packages` or `import picamera2` fails inside it.)
 
 The default detector backend is TFLite (verified end-to-end against real weights), so also run:
 

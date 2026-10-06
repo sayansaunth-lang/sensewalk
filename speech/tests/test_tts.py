@@ -70,3 +70,15 @@ def test_write_latency_log(tmp_path):
     content = out_file.read_text()
     assert "phrase_key" in content
     assert "person_close" in content
+
+
+def test_sign_read_speaks_the_recognised_text():
+    # Regression: main.py once called speak("sign_read") without text= and crashed with KeyError.
+    speaker = AlertSpeaker.__new__(AlertSpeaker)
+    speaker._engine = FakeEngine()
+    speaker._last_spoken_at = {}
+    speaker.latency_log = []
+
+    speaker.speak("sign_read", text="ROOM 204")
+
+    assert speaker._engine.said == ["ROOM 204"]

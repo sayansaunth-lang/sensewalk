@@ -36,6 +36,9 @@ VOCABULARY: dict[str, Phrase] = {
     "obstacle_close": Phrase("obstacle_close", "Obstacle close, stopping", Severity.CRITICAL),
     "pothole_ahead": Phrase("pothole_ahead", "Pothole ahead, stopping", Severity.CRITICAL),
     "fall_alert": Phrase("fall_alert", "Fall detected, sending alert", Severity.CRITICAL),
+    "fall_countdown": Phrase("fall_countdown", "Fall detected. Hold the handle to cancel the alert", Severity.CRITICAL),
+    "alert_sent": Phrase("alert_sent", "Emergency message sent", Severity.CRITICAL),
+    "alert_failed": Phrase("alert_failed", "Could not send emergency message", Severity.CRITICAL),
     "brake_released": Phrase("brake_released", "Clear, walking", Severity.INFO),
 }
 

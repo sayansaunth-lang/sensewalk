@@ -34,3 +34,17 @@ def test_should_attempt_ocr_false_on_blank_frame():
 def test_should_attempt_ocr_true_with_sign_like_region():
     frame = make_frame_with_rectangle()
     assert should_attempt_ocr(frame) is True
+
+
+def test_read_sign_reports_missing_tesseract_as_runtime_error(monkeypatch):
+    import pytesseract
+    import pytest
+
+    from vision.pi.src.ocr import read_sign
+
+    def boom(*_a, **_k):
+        raise pytesseract.TesseractNotFoundError()
+
+    monkeypatch.setattr(pytesseract, "image_to_data", boom)
+    with pytest.raises(RuntimeError, match="Tesseract is not installed"):
+        read_sign(make_frame_with_rectangle())

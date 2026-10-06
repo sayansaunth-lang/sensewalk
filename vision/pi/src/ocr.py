@@ -91,7 +91,12 @@ def read_sign(frame, roi: Optional[tuple[int, int, int, int]] = None) -> OcrResu
 
     processed = preprocess_for_ocr(image)
 
-    data = pytesseract.image_to_data(processed, output_type=pytesseract.Output.DICT)
+    try:
+        data = pytesseract.image_to_data(processed, output_type=pytesseract.Output.DICT)
+    except pytesseract.TesseractNotFoundError as exc:
+        # pytesseract raises an OSError subclass here; normalise it to the RuntimeError
+        # this function's contract (and main.py's handler) promises.
+        raise RuntimeError("Tesseract is not installed (Raspberry Pi: sudo apt install tesseract-ocr)") from exc
     words = []
     confidences = []
     for text, conf in zip(data["text"], data["conf"]):
