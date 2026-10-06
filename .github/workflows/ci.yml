@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  python-tests:
+    name: Python unit tests (comms, fusion, speech, vision)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install system Tesseract (for pytesseract import)
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr
+      - name: Install Python dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Run pytest
+        run: python -m pytest -v
+
+  firmware-build:
+    name: ESP32-S3 firmware build (PlatformIO)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install PlatformIO
+        run: pip install platformio
+      - name: Build firmware for esp32-s3-devkitc-1
+        working-directory: firmware/esp32
+        run: pio run -e esp32-s3-devkitc-1
+
+  firmware-native-tests:
+    name: Firmware host-native unit tests (safety rules, UART codec)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install PlatformIO
+        run: pip install platformio
+      - name: Run native unit tests
+        working-directory: firmware/esp32
+        run: pio test -e native
