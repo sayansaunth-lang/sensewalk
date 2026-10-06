@@ -1,5 +1,7 @@
 # SENSEWALK
 
+[![CI](https://github.com/sayansaunth-lang/sensewalk/actions/workflows/ci.yml/badge.svg)](https://github.com/sayansaunth-lang/sensewalk/actions/workflows/ci.yml)
+
 Ultra-low-cost smart assistive mobility walker for visually impaired users. Dual-core architecture: an **ESP32-S3** handles real-time hazard sensing and active braking (FreeRTOS, <50ms response), a Raspberry Pi handles computer vision, OCR, speech, and GPS/GSM alerts. The team is building with a **Raspberry Pi 3B (1GB)** + Pi Camera Module 3 instead of the Pi 4 the original research report specced — see [docs/PI3B_LOW_RAM_SETUP.md](docs/PI3B_LOW_RAM_SETUP.md) for what that changes.
 
 Academic project, 2nd Year B.Tech, 6-member team, 8-week build (5 phases). Target budget ₹15,000–17,000.
