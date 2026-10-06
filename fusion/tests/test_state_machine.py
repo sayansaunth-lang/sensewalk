@@ -145,3 +145,31 @@ def test_four_state_cycle_matches_roadmap_deliverable():
     seen.add(fusion.update(make_snapshot(fall_flag=True)).state)  # FALL_ALERT
 
     assert len(seen) >= 4
+
+
+def test_visual_pothole_alone_warns_but_never_brakes():
+    # A camera has no depth, so a vision-only pothole must not engage the brake —
+    # only ToF/ultrasonic hazards (which have real distance) may do that.
+    fusion = SensorFusion()
+    decision = fusion.update(make_snapshot(vision_ground_hazard="pothole"))
+    assert decision.state is State.HAZARD_WARNING
+    assert decision.hazard is HazardKind.GROUND_HAZARD_VISUAL
+    assert decision.alert_phrase_key == "ground_hazard_seen"
+
+
+def test_tof_dropoff_outranks_visual_pothole():
+    fusion = SensorFusion()
+    snap = make_snapshot(tof_gnd_mm=600, tof_gnd_baseline_mm=300, vision_ground_hazard="pothole")
+    decision = fusion.update(snap)
+    assert decision.hazard is HazardKind.GROUND_DROPOFF
+    assert decision.state is State.BRAKE_ENGAGED
+
+
+def test_obstacle_outranks_visual_pothole():
+    decision = SensorFusion().update(make_snapshot(us_c_cm=20, vision_ground_hazard="pothole"))
+    assert decision.hazard is HazardKind.OBSTACLE_CLOSE
+
+
+def test_visual_pothole_outranks_person_nearby():
+    decision = SensorFusion().update(make_snapshot(vision_ground_hazard="pothole", vision_person_nearby=True))
+    assert decision.hazard is HazardKind.GROUND_HAZARD_VISUAL

@@ -21,7 +21,7 @@ ESP32-side telemetry (ToF/ultrasonic/IMU/grip) is faked:
 On constrained hardware (e.g. a Raspberry Pi 3B with 1GB RAM instead of a
 Pi 4 — see docs/PI3B_LOW_RAM_SETUP.md), two flags matter most:
 
-    --detector-backend tflite       # lighter-weight quantized model than the default opencv-dnn
+    --detector-backend tflite       # the default; quantized MobileNet-SSD, lightest option
     --process-every-n-frames 3      # only run detection on every 3rd frame; camera still streams live
 """
 from __future__ import annotations
@@ -39,9 +39,12 @@ from speech.tts import AlertSpeaker  # noqa: E402
 from vision.pi.src.camera import FPSCounter, OpenCVCameraSource, Picamera2Source  # noqa: E402
 from vision.pi.src.detector import (  # noqa: E402
     MobileNetSSDDetector,
+    RollingConfirm,
     TFLiteSSDDetector,
-    any_hazard_relevant,
+    YoloOnnxDetector,
     draw_detections,
+    find_ground_hazard,
+    nearest_person,
 )
 from vision.pi.src.ocr import read_sign, should_attempt_ocr  # noqa: E402
 
@@ -67,9 +70,19 @@ def main() -> int:
     parser.add_argument(
         "--detector-backend",
         choices=["opencv-dnn", "tflite"],
-        default="opencv-dnn",
-        help="opencv-dnn (default, simplest setup) or tflite (lighter-weight, "
-        "recommended on constrained hardware — see docs/PI3B_LOW_RAM_SETUP.md)",
+        default="tflite",
+        help="tflite (default: tested end-to-end and lightest — see docs/PI3B_LOW_RAM_SETUP.md) or "
+        "opencv-dnn (requires Caffe weights you supply yourself; see models/download_models.sh)",
+    )
+    parser.add_argument(
+        "--hazard-model",
+        nargs="?",
+        const="default",
+        default=None,
+        metavar="PATH.onnx",
+        help="also run the project's own trained ground-hazard detector (potholes etc., see training/). "
+        "Bare flag uses vision/pi/models/hazard_yolov8n_320.onnx. Costs extra CPU per inference — "
+        "raise --process-every-n-frames on a Pi 3B.",
     )
     parser.add_argument(
         "--process-every-n-frames",
@@ -103,6 +116,13 @@ def main() -> int:
 
     camera = build_camera(args)
     detector = build_detector(args)
+    hazard_detector = None
+    if args.hazard_model:
+        if args.hazard_model == "default":
+            hazard_detector = YoloOnnxDetector()
+        else:
+            hazard_detector = YoloOnnxDetector(model_path=Path(args.hazard_model))
+    person_confirm, ground_confirm = RollingConfirm(2, 3), RollingConfirm(2, 3)
     fusion = SensorFusion()
     speaker = None if args.no_speech else AlertSpeaker()
     fps_counter = FPSCounter()
@@ -152,8 +172,18 @@ def main() -> int:
 
             if run_inference:
                 detections = detector.detect(frame)
-                hazard_det = any_hazard_relevant(detections)
-                snapshot.vision_person_nearby = hazard_det is not None and hazard_det.label == "person"
+                frame_h = frame.shape[0]
+                # "nearby" = apparent size, a crude proxy (see detector.NEARBY_MIN_HEIGHT_FRACTION);
+                # real distance comes from the ESP32's ToF/ultrasonic sensors.
+                snapshot.vision_person_nearby = person_confirm.observe(
+                    nearest_person(detections, frame_h) is not None
+                )
+                if hazard_detector is not None:
+                    hazard_dets = hazard_detector.detect(frame)
+                    ground = find_ground_hazard(hazard_dets)
+                    confirmed = ground_confirm.observe(ground is not None)
+                    snapshot.vision_ground_hazard = ground.label if (ground and confirmed) else None
+                    detections = detections + hazard_dets
 
                 snapshot.ocr_text = None
                 if not args.no_ocr and should_attempt_ocr(frame):
@@ -171,7 +201,7 @@ def main() -> int:
                 speaker.speak(decision.alert_phrase_key)
 
             if link is not None:
-                left = 200 if snapshot.vision_person_nearby else 0
+                left = 200 if (snapshot.vision_person_nearby or snapshot.vision_ground_hazard) else 0
                 right = left
                 link.send("haptic", f"{left}|{right}")
 

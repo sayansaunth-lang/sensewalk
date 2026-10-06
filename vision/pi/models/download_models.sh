@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# Downloads the pretrained Caffe MobileNet-SSD (VOC 20-class) model files
-# used by vision/pi/src/detector.py. Model weights are gitignored
-# (*.caffemodel) — run this once after cloning, on the Pi or any dev
-# machine that will run detection.
-set -euo pipefail
-cd "$(dirname "$0")"
-
-PROTOTXT_URL="https://raw.githubusercontent.com/chuanqi305/MobileNet-SSD/master/deploy.prototxt"
-CAFFEMODEL_URL="https://github.com/chuanqi305/MobileNet-SSD/raw/master/mobilenet_iter_73000.caffemodel"
-
-echo "Downloading MobileNet-SSD prototxt..."
-curl -fL "$PROTOTXT_URL" -o MobileNetSSD_deploy.prototxt
-
-echo "Downloading MobileNet-SSD caffemodel (~23MB)..."
-curl -fL "$CAFFEMODEL_URL" -o MobileNetSSD_deploy.caffemodel
-
-echo "Done. Verify with: python3 -c \"import cv2; cv2.dnn.readNetFromCaffe('MobileNetSSD_deploy.prototxt', 'MobileNetSSD_deploy.caffemodel')\""
+# The Caffe MobileNet-SSD backend (--detector-backend opencv-dnn) is NOT
+# supported out of the box.
+#
+# The weights this script used to fetch could not be verified: the file name
+# it pointed to is the unmerged training snapshot, which does not match
+# deploy.prototxt (that needs the batch-norm-merged MobileNetSSD_deploy.caffemodel),
+# and no trustworthy download location for the merged file was found.
+#
+# Use the default TFLite backend instead — it is tested end-to-end against real
+# weights and is lighter on a Raspberry Pi 3B anyway:
+#
+#     bash vision/pi/models/download_tflite_model.sh
+#
+# If you obtain a verified MobileNetSSD_deploy.caffemodel + prototxt yourself,
+# place them in this directory and run main.py with --detector-backend opencv-dnn.
+echo "This backend has no verified weight source. Run download_tflite_model.sh instead." >&2
+exit 1

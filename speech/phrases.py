@@ -32,6 +32,7 @@ class Phrase:
 VOCABULARY: dict[str, Phrase] = {
     "sign_read": Phrase("sign_read", "{text}", Severity.INFO),
     "person_close": Phrase("person_close", "Person close ahead", Severity.WARNING),
+    "ground_hazard_seen": Phrase("ground_hazard_seen", "Hazard on the ground ahead, slow down", Severity.WARNING),
     "obstacle_close": Phrase("obstacle_close", "Obstacle close, stopping", Severity.CRITICAL),
     "pothole_ahead": Phrase("pothole_ahead", "Pothole ahead, stopping", Severity.CRITICAL),
     "fall_alert": Phrase("fall_alert", "Fall detected, sending alert", Severity.CRITICAL),

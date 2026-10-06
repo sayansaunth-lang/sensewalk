@@ -36,7 +36,7 @@ Dual-core split: safety-critical sensing/actuation on the ESP32-S3 (deterministi
 
 1. **The ESP32 safety layer is independent.** If any sensor crosses a hard hazard threshold, the brake engages directly in firmware — it does not wait for a UART message from the Pi.
 2. **Depth/distance and classification are separate concerns.** ToF/ultrasonic own distance; MobileNet-SSD only classifies (person/obstacle/chair) — it is not used for depth.
-3. **Priority order** (used by the Pi-side fusion state machine): hard ToF drop-off > ultrasonic proximity > vision "person nearby" > OCR sign read. Physical safety always outranks informational alerts.
+3. **Priority order** (used by the Pi-side fusion state machine): hard ToF drop-off > ultrasonic proximity > vision-detected ground hazard (pothole/stairs) > vision "person nearby" > OCR sign read. Physical safety always outranks informational alerts. A vision-detected ground hazard is a *warning only* — a camera gives no depth, so it can never engage the brake by itself; only ToF/ultrasonic readings (which have real distance) may do that.
 4. **States**: `IDLE → WALKING → HAZARD_WARNING → BRAKE_ENGAGED → FALL_ALERT` (and back). Sketch changes here before changing `fusion/` code.
 
 ## UART protocol
@@ -52,6 +52,7 @@ Spec lives in [`comms/PROTOCOL.md`](../comms/PROTOCOL.md), implemented on both s
 | UART wire codec (both languages) | `comms/PROTOCOL.md`, `comms/python/protocol.py`, `firmware/esp32/src/comms/uart_protocol.h` |
 | Fusion state machine | `fusion/state_machine.py` |
 | Vision (camera/detection/OCR) | `vision/pi/src/` |
+| Training the custom ground-hazard model (potholes) | `training/` (output: `vision/pi/models/hazard_yolov8n_320.onnx`) |
 | Speech + buzzer fallback | `speech/` |
 | Test tooling & logged results | `test/` |
 

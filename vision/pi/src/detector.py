@@ -55,7 +55,7 @@ class Detection:
 
     @property
     def is_hazard_relevant(self) -> bool:
-        return self.label in HAZARD_RELEVANT_CLASSES
+        return self.label in HAZARD_RELEVANT_CLASSES or self.label in GROUND_HAZARD_CLASSES
 
 
 class MobileNetSSDDetector:
@@ -118,6 +118,178 @@ class MobileNetSSDDetector:
 
 
 draw_detections = MobileNetSSDDetector.draw_detections  # backend-agnostic alias — operates only on Detection objects
+
+
+# ---------------------------------------------------------------------------
+# Custom ground-hazard model (potholes etc.) — trained by training/, run here.
+# ---------------------------------------------------------------------------
+
+HAZARD_ONNX_PATH = MODELS_DIR / "hazard_yolov8n_320.onnx"
+HAZARD_CLASSES_PATH = MODELS_DIR / "hazard_classes.txt"
+
+# Labels from the custom hazard model that mean "something on the ground ahead
+# that you could fall into or trip over". Kept separate from
+# HAZARD_RELEVANT_CLASSES (COCO objects like person/car) so one kind of
+# detection can never hide the other in any_hazard_relevant().
+GROUND_HAZARD_CLASSES = {"pothole", "stairs", "curb", "open_drain"}
+
+HAZARD_DEFAULT_CONFIDENCE = 0.35
+HAZARD_DEFAULT_NMS_IOU = 0.45
+
+# A person whose bounding box is at least this fraction of the frame height is
+# treated as "nearby". Vision has no true depth (that is the ToF/ultrasonic
+# sensors' job — docs/ARCHITECTURE.md design rule #2), so apparent size is a
+# deliberately crude proxy, not a distance measurement. Tune on real footage.
+NEARBY_MIN_HEIGHT_FRACTION = 0.45
+
+
+def letterbox(image, size: int, pad_value: int = 114):
+    """Resize keeping aspect ratio and pad to a size x size square — the same
+    preprocessing YOLO models are trained with. Returns
+    (padded_image, scale, pad_x, pad_y) so boxes can be mapped back."""
+    import cv2
+    import numpy as np
+
+    h, w = image.shape[:2]
+    scale = min(size / h, size / w)
+    new_w, new_h = int(round(w * scale)), int(round(h * scale))
+    resized = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+    pad_x, pad_y = (size - new_w) // 2, (size - new_h) // 2
+    canvas = np.full((size, size, 3), pad_value, dtype=np.uint8)
+    canvas[pad_y : pad_y + new_h, pad_x : pad_x + new_w] = resized
+    return canvas, scale, pad_x, pad_y
+
+
+def postprocess_yolo_output(
+    output,
+    class_names: Sequence[str],
+    scale: float,
+    pad_x: int,
+    pad_y: int,
+    orig_w: int,
+    orig_h: int,
+    confidence_threshold: float = HAZARD_DEFAULT_CONFIDENCE,
+    nms_iou: float = HAZARD_DEFAULT_NMS_IOU,
+) -> list[Detection]:
+    """Decode a YOLOv8-style ONNX output tensor into Detections in original
+    frame pixels. Accepts shape (1, 4+nc, N) (the standard export) or
+    (1, N, 4+nc). Pure numpy + cv2.dnn.NMSBoxes — unit-testable with
+    synthetic tensors, no model file needed."""
+    import cv2
+    import numpy as np
+
+    out = np.asarray(output)
+    if out.ndim == 3:
+        out = out[0]
+    channels = 4 + len(class_names)
+    # Decide the layout from the known channel count rather than guessing from
+    # which dimension is bigger. Channels-first (the standard export) wins a tie.
+    if out.shape[0] == channels:
+        out = out.T  # (4+nc, N) -> (N, 4+nc)
+    elif out.shape[1] != channels:
+        raise ValueError(
+            f"model output shape {tuple(out.shape)} does not match {len(class_names)} class names "
+            f"(expected a dimension of {channels} = 4 box values + one score per class)"
+        )
+
+    class_scores = out[:, 4:]
+    class_ids = class_scores.argmax(axis=1)
+    confidences = class_scores.max(axis=1)
+    keep = confidences >= confidence_threshold
+    if not keep.any():
+        return []
+
+    boxes_xywh, confidences, class_ids = out[keep, :4], confidences[keep], class_ids[keep]
+
+    rects, scores = [], []
+    for cx, cy, w, h in boxes_xywh:
+        x1 = (cx - w / 2 - pad_x) / scale
+        y1 = (cy - h / 2 - pad_y) / scale
+        rects.append([float(x1), float(y1), float(w / scale), float(h / scale)])
+    scores = [float(c) for c in confidences]
+
+    indices = cv2.dnn.NMSBoxes(rects, scores, confidence_threshold, nms_iou)
+    detections: list[Detection] = []
+    for i in np.array(indices).flatten():
+        x, y, w, h = rects[int(i)]
+        x1, y1 = max(0, int(round(x))), max(0, int(round(y)))
+        x2, y2 = min(orig_w, int(round(x + w))), min(orig_h, int(round(y + h)))
+        if x2 <= x1 or y2 <= y1:
+            continue
+        detections.append(
+            Detection(label=class_names[int(class_ids[int(i)])], confidence=scores[int(i)], box=(x1, y1, x2, y2))
+        )
+    detections.sort(key=lambda d: d.confidence, reverse=True)
+    return detections
+
+
+def load_class_names(path: Path = HAZARD_CLASSES_PATH) -> list[str]:
+    return [line.strip() for line in path.read_text().splitlines() if line.strip()]
+
+
+class YoloOnnxDetector:
+    """The project's own trained ground-hazard detector (potholes, ...),
+    exported by training/train_hazard_model.py to ONNX and run with OpenCV's
+    DNN module — so it needs no runtime beyond opencv-python, which the Pi
+    already has. Weights: vision/pi/models/hazard_yolov8n_320.onnx plus
+    hazard_classes.txt (see training/README.md)."""
+
+    def __init__(
+        self,
+        model_path: Path = HAZARD_ONNX_PATH,
+        classes_path: Path = HAZARD_CLASSES_PATH,
+        confidence_threshold: float = HAZARD_DEFAULT_CONFIDENCE,
+        nms_iou: float = HAZARD_DEFAULT_NMS_IOU,
+        input_size: int = 320,
+    ) -> None:
+        import cv2
+
+        if not model_path.exists() or not classes_path.exists():
+            raise FileNotFoundError(
+                f"Hazard model not found at {model_path} / {classes_path}. "
+                "Train it with training/train_hazard_model.py or copy a trained export into vision/pi/models/."
+            )
+        self._cv2 = cv2
+        self._net = cv2.dnn.readNetFromONNX(str(model_path))
+        self.class_names = load_class_names(classes_path)
+        self.confidence_threshold = confidence_threshold
+        self.nms_iou = nms_iou
+        self.input_size = input_size
+
+    def detect(self, frame) -> list[Detection]:
+        cv2 = self._cv2
+        h, w = frame.shape[:2]
+        padded, scale, pad_x, pad_y = letterbox(frame, self.input_size)
+        blob = cv2.dnn.blobFromImage(padded, 1 / 255.0, (self.input_size, self.input_size), swapRB=True, crop=False)
+        self._net.setInput(blob)
+        output = self._net.forward()
+        return postprocess_yolo_output(
+            output, self.class_names, scale, pad_x, pad_y, w, h, self.confidence_threshold, self.nms_iou
+        )
+
+
+def is_nearby(det: Detection, frame_height: int, min_fraction: float = NEARBY_MIN_HEIGHT_FRACTION) -> bool:
+    """Crude 'close enough to matter' test from apparent size — see
+    NEARBY_MIN_HEIGHT_FRACTION for why this is a proxy, not a measurement."""
+    if frame_height <= 0:
+        return False
+    return (det.box[3] - det.box[1]) / frame_height >= min_fraction
+
+
+def nearest_person(detections: list[Detection], frame_height: int) -> Optional[Detection]:
+    """Largest-looking (closest) person, if any is 'nearby' by is_nearby()."""
+    people = [d for d in detections if d.label == "person" and is_nearby(d, frame_height)]
+    if not people:
+        return None
+    return max(people, key=lambda d: d.box[3] - d.box[1])
+
+
+def find_ground_hazard(detections: list[Detection], min_confidence: float = HAZARD_DEFAULT_CONFIDENCE) -> Optional[Detection]:
+    """Highest-confidence ground hazard (pothole/stairs/...), if any."""
+    hits = [d for d in detections if d.label in GROUND_HAZARD_CLASSES and d.confidence >= min_confidence]
+    if not hits:
+        return None
+    return max(hits, key=lambda d: d.confidence)
 
 
 def any_hazard_relevant(detections: list[Detection]) -> Optional[Detection]:
@@ -208,9 +380,12 @@ class TFLiteSSDDetector:
             )
 
         try:
-            from tflite_runtime.interpreter import Interpreter  # lazy import
+            from tflite_runtime.interpreter import Interpreter  # Raspberry Pi OS (piwheels)
         except ImportError:
-            from tensorflow.lite import Interpreter  # fallback if only full tensorflow is installed
+            try:
+                from ai_edge_litert.interpreter import Interpreter  # Windows/macOS/Linux dev machines
+            except ImportError:
+                from tensorflow.lite import Interpreter  # last resort: full tensorflow
 
         self._interpreter = Interpreter(model_path=str(model_path))
         self._interpreter.allocate_tensors()
@@ -249,3 +424,22 @@ class TFLiteSSDDetector:
         return postprocess_tflite_detections(
             boxes, class_ids, scores, num_detections, self.labels, w, h, self.confidence_threshold
         )
+
+
+class RollingConfirm:
+    """Require a detection in at least `k` of the last `n` inference results
+    before reporting it — the vision-side twin of the firmware's confirm-twice
+    rule (B2 in the learning roadmap). One flickery frame should not flip the
+    system into a warning state or make it speak."""
+
+    def __init__(self, k: int = 2, n: int = 3) -> None:
+        if not 1 <= k <= n:
+            raise ValueError("need 1 <= k <= n")
+        self.k, self.n = k, n
+        self._history: list[bool] = []
+
+    def observe(self, present: bool) -> bool:
+        self._history.append(bool(present))
+        if len(self._history) > self.n:
+            self._history.pop(0)
+        return sum(self._history) >= self.k

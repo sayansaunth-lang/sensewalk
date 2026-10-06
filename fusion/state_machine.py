@@ -32,6 +32,7 @@ class HazardKind(Enum):
     NONE = auto()
     GROUND_DROPOFF = auto()  # hard ToF drop-off — highest priority
     OBSTACLE_CLOSE = auto()  # ultrasonic proximity
+    GROUND_HAZARD_VISUAL = auto()  # vision saw a pothole/stairs/etc. — a warning, never a brake (no depth from a camera)
     PERSON_NEARBY = auto()  # vision classification
     SIGN_READ = auto()  # OCR result — informational only, never a hazard escalation
 
@@ -40,6 +41,7 @@ class HazardKind(Enum):
 HAZARD_PRIORITY = [
     HazardKind.GROUND_DROPOFF,
     HazardKind.OBSTACLE_CLOSE,
+    HazardKind.GROUND_HAZARD_VISUAL,
     HazardKind.PERSON_NEARBY,
     HazardKind.SIGN_READ,
 ]
@@ -69,6 +71,7 @@ class SensorSnapshot:
     grip_right: bool = False
     fall_flag: bool = False
     vision_person_nearby: bool = False
+    vision_ground_hazard: Optional[str] = None  # label from the custom hazard model, e.g. "pothole"
     ocr_text: Optional[str] = None
     mcu_alive: bool = True
     last_grip_at: float = field(default_factory=time.monotonic)
@@ -99,6 +102,9 @@ class SensorFusion:
         closest_us = [v for v in (s.us_l_cm, s.us_c_cm, s.us_r_cm) if v is not None]
         if closest_us and min(closest_us) < OBSTACLE_CLOSE_CM:
             return HazardKind.OBSTACLE_CLOSE
+
+        if s.vision_ground_hazard:
+            return HazardKind.GROUND_HAZARD_VISUAL
 
         if s.vision_person_nearby:
             return HazardKind.PERSON_NEARBY
@@ -135,6 +141,12 @@ class SensorFusion:
                 self._transition(State.WALKING, "hazard cleared + grip re-engaged")
             else:
                 return Decision(self.state, HazardKind.NONE, None, "hazard cleared, waiting for grip")
+
+        if hazard is HazardKind.GROUND_HAZARD_VISUAL:
+            self._transition(State.HAZARD_WARNING, f"vision: {s.vision_ground_hazard} ahead")
+            return Decision(
+                self.state, hazard, "ground_hazard_seen", f"vision detected {s.vision_ground_hazard} ahead"
+            )
 
         if hazard is HazardKind.PERSON_NEARBY:
             self._transition(State.HAZARD_WARNING, "vision: person nearby")

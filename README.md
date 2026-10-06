@@ -8,7 +8,8 @@ Academic project, 2nd Year B.Tech, 6-member team, 8-week build (5 phases). Targe
 
 ```
 firmware/esp32/    ESP32-S3 firmware (FreeRTOS): sensor polling, brake trigger, haptics, UART link
-vision/pi/          Raspberry Pi: OpenCV pipeline, MobileNet-SSD detection, Tesseract OCR
+vision/pi/          Raspberry Pi: OpenCV pipeline, object detection (COCO + our own pothole model), Tesseract OCR
+training/           Train/evaluate/export the custom ground-hazard (pothole) detector that runs on the Pi
 comms/               UART protocol spec + code shared by both boards (message format, parsing)
 fusion/              Sensor-fusion / decision state machine (runs on the Pi)
 speech/              Offline TTS (pyttsx3/eSpeak), alert phrase vocabulary, buzzer fallback
@@ -72,7 +73,8 @@ Open a pull request into `main` for every merge — get at least one teammate's 
 
 - **`comms/`** — UART wire protocol (comma-separated, checksummed) fully specified in [PROTOCOL.md](comms/PROTOCOL.md), with parity implementations and unit tests on both sides: [`comms/python/`](comms/python/) (Pi) and [`firmware/esp32/src/comms/`](firmware/esp32/src/comms/) (ESP32).
 - **`fusion/`** — the sensor-fusion state machine ([`state_machine.py`](fusion/state_machine.py)) implementing the priority rules and 5-state cycle from ARCHITECTURE.md, unit tested against combined-hazard scenarios.
-- **`vision/pi/`** — camera abstraction (Pi Camera Module 3 via picamera2, or a webcam/video file/network stream for dev-machine testing), two interchangeable detector backends (OpenCV-DNN Caffe MobileNet-SSD, or a lighter quantized TFLite MobileNet-SSD for constrained hardware — `--detector-backend`), OCR with a sign-detection trigger condition, a frame-skip flag (`--process-every-n-frames`) for slower boards, and a `main.py` wiring it all together with UART + speech.
+- **`training/`** — the project's own AI model: dataset cleaning/merging with leakage-safe splits (`prepare_dataset.py`), YOLOv8n fine-tuning + ONNX export (`train_hazard_model.py`), and an evaluator that scores the *deployed* OpenCV-DNN code path rather than just the training framework (`evaluate_onnx.py`). See [training/README.md](training/README.md) for the honest numbers and limits.
+- **`vision/pi/`** — camera abstraction (Pi Camera Module 3 via picamera2, or a webcam/video file/network stream for dev-machine testing), a quantized TFLite MobileNet-SSD for people/objects (the default and tested end-to-end against real weights), an optional OpenCV-DNN Caffe backend (needs weights you supply), the project's own trained pothole detector (`--hazard-model`), "is this person actually close" logic from bounding-box size, a k-of-n confirmation filter against single-frame flicker,, OCR with a sign-detection trigger condition, a frame-skip flag (`--process-every-n-frames`) for slower boards, and a `main.py` wiring it all together with UART + speech.
 - **`speech/`** — fixed alert-phrase vocabulary, offline TTS wrapper with latency logging, and a watchdog-thread piezo buzzer fallback that fires independently of TTS state.
 - **`firmware/esp32/`** — FreeRTOS task structure (prioritised safety/ultrasonic/IMU/comms tasks), the hard sub-50ms safety override, and drivers for every sensor/actuator in the BOM. Pure-logic modules (hazard thresholds, UART codec) are unit tested on the host via PlatformIO's native test environment. See its own [README](firmware/esp32/README.md) for what's stubbed vs. calibrated.
 - **`firmware/esp32_arduino_ide/`** — the same firmware, flattened into an Arduino-IDE-compatible sketch (no subfolders) for teammates who prefer the Arduino IDE over PlatformIO. Includes a standalone blink/serial sanity-check sketch to verify the toolchain before flashing the full firmware.

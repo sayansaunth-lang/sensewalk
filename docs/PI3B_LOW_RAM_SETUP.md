@@ -45,14 +45,14 @@ sudo apt install python3-picamera2 --no-install-recommends
 
 (`picamera2` is best installed via `apt`, not `pip`, so it's correctly linked against the system libcamera — see the comment already in `vision/pi/requirements.txt`.)
 
-If you want the lighter TFLite detector backend (Step 4), also run:
+The default detector backend is TFLite (verified end-to-end against real weights), so also run:
 
 ```bash
 pip install tflite-runtime   # piwheels has a prebuilt wheel for this on Pi OS
 bash vision/pi/models/download_tflite_model.sh
 ```
 
-If that `pip install` fails to find a wheel for your exact OS/Python combination, don't fight it — just use the default `opencv-dnn` backend instead (Step 4 explains the trade-off).
+If that `pip install` fails to find a wheel for your exact OS/Python combination, try `pip install ai-edge-litert` (Google's current packaging of the same runtime). The alternative `--detector-backend opencv-dnn` is **not** a ready fallback: it needs Caffe weights you must source yourself (see `vision/pi/models/download_models.sh`).
 
 ## Step 4 — The two flags that actually matter for performance
 
@@ -67,7 +67,7 @@ python3 vision/pi/src/main.py \
   --serial-port /dev/serial0
 ```
 
-- **`--detector-backend tflite`**: swaps the default OpenCV-DNN Caffe MobileNet-SSD for a quantized TFLite MobileNet-SSD. Quantized (8-bit integer) models are meaningfully lighter on both CPU and RAM than the equivalent float model run through OpenCV's DNN module — this is the single biggest lever available, and it's exactly what C3v in the learning roadmap is pointing at when it says "quantization ... explains your FPS target." Setup needs one extra `pip install` and a model download (Step 3) — if that's more friction than it's worth for your timeline, the default `opencv-dnn` backend still works, just slower.
+- **`--detector-backend tflite`** (already the default): a quantized (8-bit integer) MobileNet-SSD run through the TFLite runtime — meaningfully lighter on CPU and RAM than the same architecture in float form, which is what C3v in the learning roadmap means by "quantization explains your FPS target". On a laptop CPU it runs a 300x300 frame in roughly 25-35 ms; expect roughly an order of magnitude slower on a Pi 3B — measure it (Step 5) rather than trusting that estimate.
 - **`--process-every-n-frames N`**: only runs the (expensive) detection model on every Nth frame — the camera keeps streaming and the fusion state machine still updates every frame using the most recent detection result, so the system stays responsive even though inference itself runs less often. Start at `3` and tune from there based on measured FPS (the on-screen FPS counter with `--preview`, or log it).
 - Smaller `--width`/`--height` also directly reduces per-frame OpenCV overhead (resize, color conversion) independent of the detector backend.
 
@@ -86,3 +86,13 @@ Watch the on-screen FPS counter for at least a minute under realistic conditions
 - Don't try to run Tesseract OCR on every frame regardless of backend choice — `vision/pi/src/ocr.py`'s `should_attempt_ocr()` trigger-condition gate already limits this to frames with a sign-like region, which matters even more here than on a Pi 4.
 - Don't run the Desktop image "just to see the preview window" — SSH in and use `--preview` with X11 forwarding only for short debugging sessions, or better, run headless and log/photograph results instead.
 - Don't install full `tensorflow` unless you've confirmed `tflite-runtime` genuinely isn't available for your setup — full TensorFlow is hundreds of MB and its own import overhead alone can be a meaningful chunk of your 1GB budget before you've processed a single frame.
+
+## Adding the pothole detector (optional, costs extra CPU)
+
+COCO-trained detectors know people and chairs but not potholes, stairs or curbs. The project trains its own ground-hazard model (see [`training/README.md`](../training/README.md)); once `vision/pi/models/hazard_yolov8n_320.onnx` exists, add it with:
+
+```bash
+python3 vision/pi/src/main.py --camera picamera2 --hazard-model --process-every-n-frames 4 --width 320 --height 240
+```
+
+It runs a second network on every processed frame, so on a Pi 3B raise `--process-every-n-frames` (potholes are static; at walking pace a result every ~1 s is still useful). It only ever produces a *warning* — a camera cannot measure distance, so braking stays the job of the ESP32's ToF/ultrasonic sensors.
