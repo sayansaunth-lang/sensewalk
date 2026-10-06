@@ -54,11 +54,12 @@ The table below is kept as the original aspirational spec for reference and for 
 | Piezo Buzzer | Audible fallback if TTS fails/lags | 1 | 20 |
 | Perfboard / Prototyping PCB | Vibration-resistant soldered wiring vs. breadboard | 2 | 80 |
 | JST/Dupont Connector Kit + Heat-shrink | Serviceable wiring harness | 1 set | 150 |
-| | **Additional subtotal** | | **1,770** |
+| 2× USB-to-TTL serial adapter (CP2102/CH340) | The Pi 3B has one usable hardware UART (used for the ESP32); GPS and GSM need USB serial — see `docs/WIRING.md` | 2 | 300 |
+| | **Additional subtotal** | | **2,070** |
 
 ## Revised total
 
-Original estimate (₹16,465) + additional components (₹1,770) ≈ **₹18,235 all-in** — roughly ₹1,200–3,200 over the ₹15,000–17,000 target.
+Original estimate (₹16,465) + additional components (₹2,070) ≈ **₹18,535 all-in** — roughly ₹1,200–3,200 over the ₹15,000–17,000 target.
 
 **To close the gap:** use a lower-capacity/cheaper microSD, a passive (fan-less) heatsink, and source the GSM/GPS antennas + SIM card locally rather than online.
 

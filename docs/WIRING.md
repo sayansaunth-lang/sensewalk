@@ -44,3 +44,39 @@ See [`docs/DATASHEET_GOTCHAS.md`](DATASHEET_GOTCHAS.md) for the per-component "r
 ## What still needs a real teammate's hands
 
 This document describes the *intended* wiring from the BOM and firmware pin assignments. It has not been validated against physical breakout boards, which sometimes place XSHUT, address-select, or power pins differently than assumed here. M2 (Actuation & Power Systems Lead) should treat this as a first draft to check against the actual purchased breakouts' silkscreens/datasheets, not as verified fact.
+
+## GPS (NEO-6M) and GSM (SIM800L) — connect these to the Pi through USB-serial adapters
+
+The ESP32 link already uses the Pi's one usable hardware UART (`/dev/serial0`, GPIO14/15). A Raspberry Pi 3B has **no spare hardware UART** for the GPS and GSM modules, and bit-banged serial on a Pi is unreliable at the speeds these modules use. The plan that works:
+
+| Module | Connects to | Port it appears as | Baud |
+|---|---|---|---|
+| ESP32-S3 | Pi GPIO14/15 (see table above) | `/dev/serial0` | 115200 |
+| NEO-6M GPS | USB-to-TTL adapter (CP2102 or CH340, ~₹150) in a Pi USB port | `/dev/ttyUSB0` | 9600 |
+| SIM800L GSM | a second USB-to-TTL adapter in another Pi USB port | `/dev/ttyUSB1` | 9600 |
+
+Add **two USB-to-TTL adapters (about ₹300 total)** to the BOM — they are not in the original report. USB ports can swap numbering between boots when two identical adapters are plugged in; once both work, pin them with udev rules (or use `/dev/serial/by-id/...` paths) so the GPS never gets opened as the modem.
+
+Wire each module's TX to the adapter's RX and RX to TX (crossed), and share ground.
+
+**SIM800L power (non-negotiable):** its supply must be 3.4–4.4 V and able to deliver ~2 A in short bursts. Do **not** power it from the Pi's 5 V pin, the adapter, or any logic pin — the transmit burst browns it out and it resets mid-SMS. Feed it from the battery/buck rail through its own regulator (a ~1000 µF capacitor close to the module helps) and share ground with everything else. Its logic is 2.8 V tolerant on the RX line, so put a resistor divider or level shifter between the adapter's TX and the module's RX if the adapter outputs 3.3 V or 5 V.
+
+**It is a 2G modem.** It only works where your carrier still operates a 2G (GSM 900/1800) network; some Indian carriers have retired it in many areas. Put your SIM in a phone first, force it to 2G, and confirm you get service where the walker will be used — otherwise `AT+CREG?` will never report registered and no code can fix that.
+
+**GPS needs the sky.** The NEO-6M will not fix indoors and a cold start can take several minutes outdoors. Test it outside, early, not on demo day.
+
+Check everything stage by stage with the bench script (it reports which stage failed):
+
+```bash
+python -m emergency.send_test_sms --gsm-port /dev/ttyUSB1 --gps-port /dev/ttyUSB0 --number +91XXXXXXXXXX
+```
+
+Then enable alerts in the main pipeline (numbers come from the environment so they never end up in the repository):
+
+```bash
+export SENSEWALK_EMERGENCY_NUMBERS="+91XXXXXXXXXX,+91YYYYYYYYYY"
+python3 vision/pi/src/main.py --camera picamera2 --serial-port /dev/serial0 \
+    --gsm-port /dev/ttyUSB1 --gps-port /dev/ttyUSB0
+```
+
+A detected fall starts a 10-second countdown ("Fall detected. Hold the handle to cancel the alert"); gripping the handle cancels it, otherwise the SMS with a map link is sent. Tune the window with `--fall-confirm-s`.
