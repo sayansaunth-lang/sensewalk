@@ -48,3 +48,21 @@ jobs:
       - name: Run native unit tests
         working-directory: firmware/esp32
         run: pio test -e native
+
+  arduino-ide-sketches:
+    name: Arduino IDE sketches compile (latest ESP32 core)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Install ESP32 core and libraries (what Arduino IDE's Boards/Library Manager would install)
+        run: |
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32
+          arduino-cli lib install "VL53L1X" "Adafruit MPU6050"
+      - name: Compile the bring-up blink test
+        run: arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32_arduino_ide/SENSEWALK_blink_test
+      - name: Compile the full firmware sketch
+        run: arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32_arduino_ide/SENSEWALK_ESP32
