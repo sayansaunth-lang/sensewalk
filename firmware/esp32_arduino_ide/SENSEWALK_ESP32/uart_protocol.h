@@ -20,6 +20,10 @@ constexpr size_t MAX_VALUE_LEN = 48;
 inline uint8_t computeChecksum(const char* tag, const char* value, uint16_t seq) {
     char payload[MAX_TAG_LEN + MAX_VALUE_LEN + 8];
     int len = std::snprintf(payload, sizeof(payload), "%s,%s,%u", tag, value, seq);
+    // snprintf returns the length it WOULD have written; clamp so over-long input can
+    // never make the loop below read past the end of `payload`.
+    if (len < 0) return 0;
+    if (static_cast<size_t>(len) >= sizeof(payload)) len = static_cast<int>(sizeof(payload)) - 1;
     uint8_t csum = 0;
     for (int i = 0; i < len; ++i) {
         csum ^= static_cast<uint8_t>(payload[i]);
@@ -31,6 +35,11 @@ inline uint8_t computeChecksum(const char* tag, const char* value, uint16_t seq)
 // least MAX_LINE_LEN bytes). Returns the number of bytes written (excluding
 // the null terminator), or 0 if the encoded line would exceed MAX_LINE_LEN.
 inline size_t encodeLine(char* out, size_t outCapacity, const char* tag, const char* value, uint16_t seq) {
+    // Refuse anything decodeLine() would reject, so the two ends can never disagree.
+    if (std::strlen(tag) >= MAX_TAG_LEN || std::strlen(value) >= MAX_VALUE_LEN) {
+        if (outCapacity > 0) out[0] = '\0';
+        return 0;
+    }
     uint8_t checksum = computeChecksum(tag, value, seq);
     int len = std::snprintf(out, outCapacity, "%s,%s,%u,%02X\n", tag, value, seq, checksum);
     if (len < 0 || static_cast<size_t>(len) >= outCapacity || static_cast<size_t>(len) > MAX_LINE_LEN) {

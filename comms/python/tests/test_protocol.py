@@ -91,3 +91,18 @@ def test_sequence_tracker_handles_wraparound():
     tracker.observe(protocol.decode(protocol.encode("hb", "1", 65535)))
     gap = tracker.observe(protocol.decode(protocol.encode("hb", "2", 0)))
     assert gap == 0
+
+
+def test_length_limits_match_the_esp32_side():
+    protocol.encode("t" * 15, "v" * 47, 1)  # exactly at the limits is fine
+    with pytest.raises(ValueError):
+        protocol.encode("t" * 16, "1", 1)
+    with pytest.raises(ValueError):
+        protocol.encode("tag", "v" * 48, 1)
+
+
+def test_decode_rejects_values_the_esp32_would_reject():
+    value = "v" * 48
+    csum = protocol.compute_checksum("tag", value, 1)
+    with pytest.raises(protocol.MalformedLineError):
+        protocol.decode(f"tag,{value},1,{csum}\n")

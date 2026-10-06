@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from typing import Optional
 
 MAX_LINE_LEN = 96
+MAX_TAG_LEN = 16    # tag must be at most 15 characters (matches the ESP32 buffers)
+MAX_VALUE_LEN = 48  # value must be at most 47 characters
 
 
 class ChecksumError(ValueError):
@@ -48,6 +50,11 @@ def compute_checksum(tag: str, value: str, seq: int) -> str:
 
 def encode(tag: str, value: str, seq: int) -> bytes:
     """Build a wire-ready line (including trailing newline) for one message."""
+    if len(tag) >= MAX_TAG_LEN or len(value) >= MAX_VALUE_LEN:
+        raise ValueError(
+            f"tag must be <= {MAX_TAG_LEN - 1} and value <= {MAX_VALUE_LEN - 1} characters "
+            f"(got {len(tag)} and {len(value)}): the ESP32 side would reject it"
+        )
     checksum = compute_checksum(tag, value, seq)
     line = f"{tag},{value},{seq},{checksum}\n"
     encoded = line.encode("ascii")
@@ -76,6 +83,8 @@ def decode(line: bytes | str) -> Message:
     tag, value, seq_str, checksum = parts
     if not tag or not value or not checksum:
         raise MalformedLineError(f"empty field in line: {text!r}")
+    if len(tag) >= MAX_TAG_LEN or len(value) >= MAX_VALUE_LEN:
+        raise MalformedLineError(f"tag/value too long (limits {MAX_TAG_LEN - 1}/{MAX_VALUE_LEN - 1}): {text!r}")
 
     try:
         seq = int(seq_str)

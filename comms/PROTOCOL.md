@@ -26,6 +26,8 @@ Chosen over JSON-lines: no JSON library dependency needed on the ESP32 side, tri
 
 Example line: `tof_gnd,812,104,41\n`
 
+Field limits (enforced identically by both encoders and both decoders, so the two ends can never disagree): `tag` at most 15 characters, `value` at most 47 characters.
+
 Max line length: 96 bytes including the newline. Anything longer is truncated by the receiver's line buffer and discarded (treated as a corrupt frame).
 
 ## Message tags

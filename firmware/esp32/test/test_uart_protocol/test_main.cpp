@@ -72,8 +72,23 @@ static void test_encode_rejects_oversized_line() {
     TEST_ASSERT_EQUAL(0, len);
 }
 
+static void test_encode_accepts_values_at_the_limit_and_checksum_never_overreads() {
+    char out[MAX_LINE_LEN];
+    char atLimit[MAX_VALUE_LEN];
+    memset(atLimit, 'x', sizeof(atLimit) - 1);
+    atLimit[sizeof(atLimit) - 1] = '\0';
+    TEST_ASSERT_GREATER_THAN(0, encodeLine(out, sizeof(out), "t", atLimit, 1));
+    // Over-long input must be handled safely (clamped checksum), not read past the buffer.
+    char huge[400];
+    memset(huge, 'y', sizeof(huge) - 1);
+    huge[sizeof(huge) - 1] = '\0';
+    (void)computeChecksum(huge, huge, 1);
+    TEST_ASSERT_EQUAL(0, encodeLine(out, sizeof(out), huge, "1", 1));
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
+    RUN_TEST(test_encode_accepts_values_at_the_limit_and_checksum_never_overreads);
     RUN_TEST(test_encode_matches_documented_example);
     RUN_TEST(test_decode_roundtrip);
     RUN_TEST(test_decode_rejects_bad_checksum);
