@@ -42,7 +42,11 @@ public:
     uint16_t rightCm() const { return channels_[2].lastCm.load(std::memory_order_relaxed); }
 
 private:
+    // An explicit constructor (not an aggregate): the ESP32 toolchain's default C++
+    // standard predates C++14, where a struct with default member initialisers is
+    // not an aggregate and `{pinA, pinB}` initialisation fails to compile.
     struct Channel {
+        Channel(int trig, int echo) : trigPin(trig), echoPin(echo) {}
         int trigPin;
         int echoPin;
         std::atomic<uint16_t> lastCm{0};  // 0 = no echo yet / timeout, per hazard_rules.h convention
