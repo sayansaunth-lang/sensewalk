@@ -1,0 +1,14 @@
+# Training-only dependencies — install on a laptop/desktop (NOT the Raspberry Pi),
+# in a separate venv from the Pi runtime requirements.
+#
+# 1) GPU PyTorch first (pick the CUDA version matching your driver; this is what
+#    the project's reference training run used on an RTX 3050 laptop):
+#      pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+#    (CPU-only works too, just far slower: pip install torch torchvision)
+# 2) Then:
+ultralytics>=8.3,<9
+onnx>=1.16
+onnxslim>=0.1.34
+onnxruntime>=1.18
+opencv-python-headless>=4.9,<6
+numpy>=1.26,<3

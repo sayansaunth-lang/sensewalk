@@ -1,0 +1,17 @@
+{
+  "split": "test",
+  "images": 92,
+  "ground_truth_boxes": 187,
+  "iou_threshold": 0.5,
+  "AP50": 0.5111,
+  "operating_point": {
+    "conf": 0.35,
+    "tp": 91,
+    "fp": 51,
+    "fn": 96,
+    "precision": 0.6408,
+    "recall": 0.4866,
+    "f1": 0.5532
+  },
+  "mean_inference_ms_this_machine": 16.5
+}

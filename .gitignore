@@ -45,3 +45,16 @@ Thumbs.db
 # Secrets
 *.env
 secrets.*
+
+# Training artefacts (large, reproducible) — see training/README.md.
+# The *exported* hazard model is the one deliberate exception below.
+training/runs/
+training/**/*.pt
+!vision/pi/models/hazard_yolov8n_320.onnx
+
+# Downloaded by vision/pi/models/*.sh, not committed
+vision/pi/models/MobileNetSSD_deploy.prototxt
+vision/pi/models/coco_labelmap.txt
+
+# ultralytics validation output (created in the working dir by best.val())
+runs/
