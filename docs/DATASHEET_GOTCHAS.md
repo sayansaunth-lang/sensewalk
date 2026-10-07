@@ -49,9 +49,11 @@ The entries below are pre-filled with the gotchas already known from the researc
 - Provides charge protection but check whether the specific module variant also includes discharge (over-discharge / short-circuit) protection — some cheap boards are charge-only.
 - Never bypass it to "wire the battery directly" for a quick test — Li-ion cells with no protection are a real fire risk, not a theoretical one.
 
-## Raspberry Pi 4 — owner: C2
+## Raspberry Pi 3B (1 GB; the project was specced for a Pi 4) — owner: C2
 
-- Thermal-throttles under sustained CV/OCR load without adequate cooling — confirmed via a 10-minute continuous-inference test (C1v deliverable), not assumed.
+- **Only 1 GB of RAM.** Use the Lite (headless) OS image; the desktop alone can eat a quarter of it. See `docs/PI3B_LOW_RAM_SETUP.md`.
+- **One usable hardware UART**, and the ESP32 link takes it. GPS and GSM need USB-to-serial adapters (`docs/WIRING.md`).
+- Thermal-throttles under sustained CV/OCR load without adequate cooling — confirm with a 10-minute continuous-inference test (C1v deliverable), don't assume.
 - 5V rail is not overvoltage-tolerant — see the power-chain warning in `docs/WIRING.md` about verifying the buck converter's actual trimmed output before connecting.
 
 ## Piezoelectric grip sensors — owner: C1
