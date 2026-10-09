@@ -2,7 +2,7 @@
 
 Every file tracked in this repository and what it does, generated from the repository's actual file list (`git ls-files`) and, for Python and C++ files, from the real classes and functions in the code. Regenerate it after adding files so it stays true.
 
-**124 files.** Most were written for this project in the build-out sessions; the original scaffold (README, TEAM, BOM, ARCHITECTURE, folder layout) came first, and `comms/python/sim_feed.py`, `test/bench_logger.py`, `docs/WIRING.md`, `docs/DATASHEET_GOTCHAS.md` and `vision/pi/sensewalk.service` came from a separate working session. Files named `test_*.py` or in `tests/` are automated tests.
+**129 files.** Most were written for this project in the build-out sessions; the original scaffold (README, TEAM, BOM, ARCHITECTURE, folder layout) came first, and `comms/python/sim_feed.py`, `test/bench_logger.py`, `docs/WIRING.md`, `docs/DATASHEET_GOTCHAS.md` and `vision/pi/sensewalk.service` came from a separate working session. Files named `test_*.py` or in `tests/` are automated tests.
 
 **Legend.** *Key functions* are the public classes/functions you would call or edit. Test files are listed by purpose only.
 
@@ -10,6 +10,7 @@ Every file tracked in this repository and what it does, generated from the repos
 
 | File | What it does | Key functions |
 |---|---|---|
+| `.gitattributes` | Forces Unix line endings on shell scripts and the systemd unit, so they do not break on the Pi when edited on Windows. |  |
 | `.github/workflows/ci.yml` | GitHub Actions. On every push runs 4 jobs: Python tests, PlatformIO ESP32-S3 firmware build, Arduino IDE sketch build (latest ESP32 core), firmware C++ unit tests. |  |
 | `.gitignore` | Keeps out virtual environments, build output, model weights downloaded by script, training runs and secrets. One deliberate exception: the trained pothole model is committed. |  |
 | `README.md` | Project entry page: what SENSEWALK is, repo layout, team roles, how to build/test each part, what is implemented and what is not, CI badge. |  |
@@ -53,11 +54,13 @@ Every file tracked in this repository and what it does, generated from the repos
 | `vision/pi/requirements.txt` | Packages needed on the Pi, with notes on tflite-runtime and picamera2. |  |
 | `vision/pi/sensewalk.service` | systemd unit to start the pipeline at boot on the Pi. Edit its ExecStart line to add flags such as --hazard-model and --gsm-port. |  |
 | `vision/pi/src/__init__.py` | Package marker. |  |
+| `vision/pi/src/benchmark.py` | Run on the Pi to measure real speed of each model with no screen or camera: mean/median/p95 ms, FPS, CPU temperature, heat/power throttling, and a suggested --process-every-n-frames value. | `percentile()`<br>`time_calls()`<br>`suggest_every_n()`<br>`read_cpu_temp_c()`<br>`parse_throttled()`<br>`read_throttled()`<br>`make_frame()`<br>`main()` |
 | `vision/pi/src/camera.py` | Camera sources: Pi Camera Module 3 (picamera2) or any webcam / video file / network stream (OpenCV), plus an FPS counter. | `class FrameSource (frames, close)`<br>`class Picamera2Source (frames, close)`<br>`class OpenCVCameraSource (frames, close)`<br>`class FPSCounter (tick)` |
 | `vision/pi/src/detector.py` | All detection code: TFLite people/object detector, optional OpenCV-DNN Caffe detector, our YOLO pothole detector, the size-based 'person nearby' test, ground-hazard finder, and the 2-of-3 confirmation filter. | `class Detection (is_hazard_relevant)`<br>`class MobileNetSSDDetector (detect, draw_detections)`<br>`letterbox()`<br>`postprocess_yolo_output()`<br>`load_class_names()`<br>`class YoloOnnxDetector (detect)`<br>`is_nearby()`<br>`nearest_person()`<br>+6 more |
 | `vision/pi/src/main.py` | The Pi program. Camera to detectors to fusion to speech/haptics/SMS, with flags for backend, frame skipping, hazard model, simulated sensors, GPS/GSM. | `build_camera()`<br>`build_detector()`<br>`main()` |
 | `vision/pi/src/ocr.py` | Sign reading with Tesseract: find sign-like regions, clean the image, read text with a confidence score; reports a missing Tesseract clearly. | `class OcrResult`<br>`preprocess_for_ocr()`<br>`find_sign_like_regions()`<br>`should_attempt_ocr()`<br>`read_sign()` |
 | `vision/pi/tests/__init__.py` | Package marker. |  |
+| `vision/pi/tests/test_benchmark.py` | Tests the timing statistics, the frame-skip suggestion and the throttling-flag parser. |  |
 | `vision/pi/tests/test_camera.py` | Tests the FPS counter. |  |
 | `vision/pi/tests/test_detector.py` | Tests detection helpers and the TFLite output parsing and label loading. |  |
 | `vision/pi/tests/test_hazard_detector.py` | Tests the YOLO decoder (letterbox, box mapping, NMS), nearby-person logic, ground-hazard picking and the confirmation filter. |  |
@@ -171,6 +174,12 @@ Every file tracked in this repository and what it does, generated from the repos
 | `test/test_analyze_detection_log.py` | Tests the analyser's counting and CSV handling. |  |
 | `test/test_bench_logger.py` | Tests the bench logger's labelling and CSV output. |  |
 
+## `scripts/` - setup helpers
+
+| File | What it does | Key functions |
+|---|---|---|
+| `scripts/pi_setup.sh` | One command, run ON the Pi: installs system packages, clones the repo, builds the venv (with --system-site-packages), installs Python packages and the TFLite runtime, downloads and checksum-verifies the models, checks both models load, and checks the camera is detected. |  |
+
 ## `docs/`
 
 | File | What it does | Key functions |
@@ -178,6 +187,7 @@ Every file tracked in this repository and what it does, generated from the repos
 | `docs/ARCHITECTURE.md` | System design: the two-processor split, design rules (ESP32 brakes alone; vision only warns), fusion priority order, code map, decisions log. |  |
 | `docs/BOM.md` | Bill of materials and budget, including the Pi 3B substitution and the two USB-to-serial adapters that were missing from the original report. |  |
 | `docs/DATASHEET_GOTCHAS.md` | Pre-filled 'read this before wiring' sheet per component (voltage/current limits, traps). Its Raspberry Pi section covers the Pi 3B you actually have. |  |
+| `docs/FILE_GUIDE.md` | This guide: every file in the repository and what it does. Generated from git ls-files and the real code, so it cannot silently drift. |  |
 | `docs/PI3B_LOW_RAM_SETUP.md` | How to run the vision pipeline on a Pi 3B with 1 GB: OS choice, swap, installing dependencies (venv with --system-site-packages), the speed flags, the optional pothole model. |  |
 | `docs/SENSEWALK_Project_Report.pdf` | The 12-page report: what was built, the AI models with real numbers, a phase-by-phase plan for your real walker, what was and was not verified. |  |
 | `docs/TEAM.md` | Six team roles, what each owns, pairing rules and per-person checklists (from the learning roadmap). |  |

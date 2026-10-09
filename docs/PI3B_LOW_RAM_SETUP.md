@@ -6,6 +6,22 @@ The team is building with a **Raspberry Pi 3B (1GB RAM)** instead of the Pi 4 (2
 2. **Half the RAM, and no swap headroom to spare** — 1GB total has to cover the OS, Python, OpenCV, the loaded model, and Tesseract simultaneously.
 3. **Older ISP** — the camera pipeline (libcamera) still works with Pi Camera Module 3, but confirm firmware is current (see Step 1).
 
+## Quick path: one command
+
+Everything in Steps 1-4 below is automated by [`scripts/pi_setup.sh`](../scripts/pi_setup.sh). Run it on the Pi (over SSH or with a screen and keyboard); it is safe to re-run and stops with a clear message at the first failure:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sayansaunth-lang/sensewalk/master/scripts/pi_setup.sh | bash
+```
+
+Then measure real speed on the Pi (no screen needed) and use the flag it suggests:
+
+```bash
+python3 vision/pi/src/benchmark.py
+```
+
+Read the manual steps below if the script fails or you want to understand what it does.
+
 None of this affects the ESP32-S3 side at all — the hard, sub-50ms braking safety layer runs entirely on the ESP32 and has zero dependency on Pi performance (`docs/ARCHITECTURE.md` design rule #1). A slow or even crashed Pi degrades the "sees a person" / "reads a sign" features, never the core hazard-braking claim. Keep that in mind if FPS numbers below feel underwhelming — the walker is still safe.
 
 ## Step 1 — OS setup

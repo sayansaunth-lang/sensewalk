@@ -10,16 +10,13 @@ opencv-python-headless>=4.9,<5
 numpy>=1.26,<3
 pytesseract>=0.3.10,<1
 pyserial>=3.5,<4
+pyttsx3>=2.90,<3   # offline speech; also needs `sudo apt install espeak-ng` on the Pi
 
-# Optional: only needed for --detector-backend tflite (detector.py's
-# TFLiteSSDDetector), the lighter-weight option recommended for
-# constrained hardware like a Raspberry Pi 3B with 1GB RAM — see
-# docs/PI3B_LOW_RAM_SETUP.md. Not needed for the default opencv-dnn backend.
-#
-# On Raspberry Pi OS, pip is preconfigured to use piwheels.org, which hosts
-# a prebuilt tflite-runtime wheel — this should just work:
-#   pip install tflite-runtime
-# If no wheel is available for your exact OS/Python version, either fall
-# back to the default opencv-dnn backend (no extra dependency needed), or
-# install full `tensorflow` instead (much heavier — likely impractical on
-# 1GB RAM) which also provides a compatible tf.lite.Interpreter.
+# TFLite runtime: REQUIRED for the default detector (detector.py's TFLiteSSDDetector,
+# the lightest option for a Raspberry Pi 3B with 1GB RAM — see docs/PI3B_LOW_RAM_SETUP.md).
+# Not listed as a normal requirement because the right package depends on your OS and
+# Python version; scripts/pi_setup.sh tries these in order:
+#   pip install tflite-runtime      (piwheels hosts a prebuilt wheel on Raspberry Pi OS)
+#   pip install ai-edge-litert      (Google's current packaging of the same runtime)
+# Full `tensorflow` also works but is far too heavy for 1GB of RAM.
+# (--detector-backend opencv-dnn needs no extra package but needs Caffe weights you must source yourself.)
