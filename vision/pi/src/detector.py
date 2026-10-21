@@ -124,7 +124,7 @@ draw_detections = MobileNetSSDDetector.draw_detections  # backend-agnostic alias
 # Custom ground-hazard model (potholes etc.) — trained by training/, run here.
 # ---------------------------------------------------------------------------
 
-HAZARD_ONNX_PATH = MODELS_DIR / "hazard_yolov8n_320.onnx"
+HAZARD_ONNX_PATH = MODELS_DIR / "hazard_yolov8n_256_fp16.onnx"
 HAZARD_CLASSES_PATH = MODELS_DIR / "hazard_classes.txt"
 
 # Labels from the custom hazard model that mean "something on the ground ahead
@@ -227,11 +227,20 @@ def load_class_names(path: Path = HAZARD_CLASSES_PATH) -> list[str]:
     return [line.strip() for line in path.read_text().splitlines() if line.strip()]
 
 
+def infer_input_size(model_path: Path, default: int = 320) -> int:
+    """Input size encoded in an exported model's filename, e.g. hazard_yolov8n_256.onnx -> 256 and
+    hazard_yolov8n_320_fp16.onnx -> 320. Falls back to `default` for any other name."""
+    import re
+
+    m = re.search(r"_(\d{2,4})(?:_fp16)?\.onnx$", Path(model_path).name)
+    return int(m.group(1)) if m else default
+
+
 class YoloOnnxDetector:
     """The project's own trained ground-hazard detector (potholes, ...),
     exported by training/train_hazard_model.py to ONNX and run with OpenCV's
     DNN module — so it needs no runtime beyond opencv-python, which the Pi
-    already has. Weights: vision/pi/models/hazard_yolov8n_320.onnx plus
+    already has. Weights: vision/pi/models/hazard_yolov8n_256_fp16.onnx plus
     hazard_classes.txt (see training/README.md)."""
 
     def __init__(
@@ -240,7 +249,7 @@ class YoloOnnxDetector:
         classes_path: Path = HAZARD_CLASSES_PATH,
         confidence_threshold: float = HAZARD_DEFAULT_CONFIDENCE,
         nms_iou: float = HAZARD_DEFAULT_NMS_IOU,
-        input_size: int = 320,
+        input_size: Optional[int] = None,
     ) -> None:
         import cv2
 
@@ -254,7 +263,9 @@ class YoloOnnxDetector:
         self.class_names = load_class_names(classes_path)
         self.confidence_threshold = confidence_threshold
         self.nms_iou = nms_iou
-        self.input_size = input_size
+        # The network's input size is fixed at export time and OpenCV does not expose it, so it is
+        # read from the filename (hazard_yolov8n_<size>[_fp16].onnx) unless given explicitly.
+        self.input_size = input_size if input_size is not None else infer_input_size(model_path)
 
     def detect(self, frame) -> list[Detection]:
         cv2 = self._cv2

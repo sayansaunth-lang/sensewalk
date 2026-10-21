@@ -139,3 +139,15 @@ def test_rolling_confirm_rejects_bad_params():
 
     with pytest.raises(ValueError):
         RollingConfirm(k=4, n=3)
+
+
+def test_infer_input_size_from_filename():
+    from pathlib import Path
+
+    from vision.pi.src.detector import infer_input_size
+
+    assert infer_input_size(Path("hazard_yolov8n_320.onnx")) == 320
+    assert infer_input_size(Path("models/hazard_yolov8n_256.onnx")) == 256
+    assert infer_input_size(Path("hazard_yolov8n_320_fp16.onnx")) == 320
+    assert infer_input_size(Path("custom_model.onnx")) == 320  # unknown name -> default
+    assert infer_input_size(Path("custom_model.onnx"), default=416) == 416

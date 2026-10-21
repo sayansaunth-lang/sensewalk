@@ -21,9 +21,9 @@ set -euo pipefail
 
 REPO_URL="https://github.com/sayansaunth-lang/sensewalk"
 DEST="${SENSEWALK_DIR:-$HOME/sensewalk}"
-# SHA-256 of vision/pi/models/hazard_yolov8n_320.onnx as committed. Update this if you retrain
+# SHA-256 of vision/pi/models/hazard_yolov8n_256_fp16.onnx as committed. Update this if you retrain
 # and commit a new model (the script tells you the new value when it differs).
-HAZARD_SHA256="e779e4ad08ccaec35e1c5d6ac2db168ecdf53d0c68f5227f4b28abc6e797150c"
+HAZARD_SHA256="7cb02db509c6820e75643dd422b8ac2d1e9c56710158aaee46f27f727c81ff04"
 
 STEP=0
 step() { STEP=$((STEP + 1)); echo; echo "==> [$STEP/7] $*"; }
@@ -71,13 +71,13 @@ step "People/object model (downloaded, checksum-verified)"
 bash vision/pi/models/download_tflite_model.sh
 
 step "Verify the AI models"
-actual="$(sha256sum vision/pi/models/hazard_yolov8n_320.onnx | cut -d' ' -f1)"
+actual="$(sha256sum vision/pi/models/hazard_yolov8n_256_fp16.onnx | cut -d' ' -f1)"
 if [ "$actual" != "$HAZARD_SHA256" ]; then
   echo "Pothole model checksum differs from the one in this script:" >&2
   echo "  expected $HAZARD_SHA256" >&2
   echo "  got      $actual" >&2
   echo "If you retrained and committed a new model on purpose, update HAZARD_SHA256 in this script." >&2
-  echo "If not, the file is corrupt: delete it and run 'git checkout vision/pi/models/hazard_yolov8n_320.onnx'." >&2
+  echo "If not, the file is corrupt: delete it and run 'git checkout vision/pi/models/hazard_yolov8n_256_fp16.onnx'." >&2
   fail "pothole model checksum mismatch"
 fi
 echo "pothole model checksum OK"

@@ -1,8 +1,8 @@
 # File Guide
 
-Every file tracked in this repository and what it does, generated from the repository's actual file list (`git ls-files`) and, for Python and C++ files, from the real classes and functions in the code. Regenerate it after adding files so it stays true.
+Every file tracked in this repository and what it does, generated from the repository's actual file list (`git ls-files`) and, for Python and C++ files, from the real classes and functions in the code. Update it when you add or rename files.
 
-**129 files.** Most were written for this project in the build-out sessions; the original scaffold (README, TEAM, BOM, ARCHITECTURE, folder layout) came first, and `comms/python/sim_feed.py`, `test/bench_logger.py`, `docs/WIRING.md`, `docs/DATASHEET_GOTCHAS.md` and `vision/pi/sensewalk.service` came from a separate working session. Files named `test_*.py` or in `tests/` are automated tests.
+**130 files.** Most were written for this project in the build-out sessions; the original scaffold (README, TEAM, BOM, ARCHITECTURE, folder layout) came first, and `comms/python/sim_feed.py`, `test/bench_logger.py`, `docs/WIRING.md`, `docs/DATASHEET_GOTCHAS.md` and `vision/pi/sensewalk.service` came from a separate working session. Files named `test_*.py` or in `tests/` are automated tests.
 
 **Legend.** *Key functions* are the public classes/functions you would call or edit. Test files are listed by purpose only.
 
@@ -50,7 +50,7 @@ Every file tracked in this repository and what it does, generated from the repos
 | `vision/pi/models/download_models.sh` | Intentionally refuses to run: the Caffe backend has no verified weight source. Points to the TFLite script. |  |
 | `vision/pi/models/download_tflite_model.sh` | Downloads the people/object model (TFLite) and checks its SHA-256 before use. |  |
 | `vision/pi/models/hazard_classes.txt` | Class names of the trained model (`pothole`). |  |
-| `vision/pi/models/hazard_yolov8n_320.onnx` | The project's own trained pothole detector (11.6 MB). |  |
+| `vision/pi/models/hazard_yolov8n_256_fp16.onnx` | The project's own trained pothole detector, compressed for the Pi (6.1 MB, 256 px input, FP16 weights). |  |
 | `vision/pi/requirements.txt` | Packages needed on the Pi, with notes on tflite-runtime and picamera2. |  |
 | `vision/pi/sensewalk.service` | systemd unit to start the pipeline at boot on the Pi. Edit its ExecStart line to add flags such as --hazard-model and --gsm-port. |  |
 | `vision/pi/src/__init__.py` | Package marker. |  |
@@ -72,6 +72,7 @@ Every file tracked in this repository and what it does, generated from the repos
 | File | What it does | Key functions |
 |---|---|---|
 | `training/README.md` | How the pothole model was trained, its honest accuracy, limits, licences, and exact commands to reproduce or improve it. |  |
+| `training/compress_model.py` | Shrinks the trained pothole model for the Pi: FP16 weights (half the file) and a smaller input size (less computing), with the measured accuracy trade-off documented in training/README.md. | `model_filename()`<br>`export_compressed()` |
 | `training/evaluate_onnx.py` | Scores the deployed model path (ONNX + OpenCV + our decoder) against labelled images: precision, recall, AP50. | `iou()`<br>`match_image()`<br>`precision_recall_at()`<br>`average_precision()`<br>`read_gt()`<br>`main()` |
 | `training/prepare_dataset.py` | Cleans and merges pothole datasets: drops junk label lines and duplicates, and keeps near-duplicate images in the same split so test scores are honest. | `class Sample`<br>`class PrepReport`<br>`parse_label_file()`<br>`dhash64()`<br>`hamming()`<br>`cluster_by_similarity()`<br>`split_clusters()`<br>`collect_source()`<br>+2 more |
 | `training/requirements-train.txt` | Packages for training (use on a PC, not the Pi), with install notes. |  |

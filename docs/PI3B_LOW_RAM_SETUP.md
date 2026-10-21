@@ -105,7 +105,7 @@ Watch the on-screen FPS counter for at least a minute under realistic conditions
 
 ## Adding the pothole detector (optional, costs extra CPU)
 
-COCO-trained detectors know people and chairs but not potholes, stairs or curbs. The project trains its own ground-hazard model (see [`training/README.md`](../training/README.md)); once `vision/pi/models/hazard_yolov8n_320.onnx` exists, add it with:
+COCO-trained detectors know people and chairs but not potholes, stairs or curbs. The project trains its own ground-hazard model (see [`training/README.md`](../training/README.md)); once `vision/pi/models/hazard_yolov8n_256_fp16.onnx` exists, add it with:
 
 ```bash
 python3 vision/pi/src/main.py --camera picamera2 --hazard-model --process-every-n-frames 4 --width 320 --height 240

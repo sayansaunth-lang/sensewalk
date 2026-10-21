@@ -1,6 +1,6 @@
 # Training the Ground-Hazard Detector (potholes)
 
-This folder produces `vision/pi/models/hazard_yolov8n_320.onnx` — the one AI model in SENSEWALK that is *ours* rather than downloaded. COCO-trained detectors (the people/objects model in `vision/pi/`) know persons and chairs but have never seen a pothole, and potholes are the headline hazard in the research report.
+This folder produces `vision/pi/models/hazard_yolov8n_256_fp16.onnx` — the one AI model in SENSEWALK that is *ours* rather than downloaded. COCO-trained detectors (the people/objects model in `vision/pi/`) know persons and chairs but have never seen a pothole, and potholes are the headline hazard in the research report.
 
 Pipeline: `prepare_dataset.py` → `train_hazard_model.py` → `evaluate_onnx.py`
 
@@ -8,24 +8,45 @@ Pipeline: `prepare_dataset.py` → `train_hazard_model.py` → `evaluate_onnx.py
 
 | | |
 |---|---|
-| Model | YOLOv8n fine-tuned from COCO-pretrained weights, 320×320 input |
+| Model | YOLOv8n fine-tuned from COCO-pretrained weights at 320×320, **3,011,043 parameters** |
 | Classes | `pothole` (one) |
 | Data | 913 unique images after cleaning (730 train / 91 val / 92 test), 1,959 boxes |
 | Training | CPU, ~66 s/epoch. The run was interrupted at epoch 24 of 60; the best checkpoint (by validation score, around epoch 17) was used |
-| Export | ONNX opset 12, fixed 320×320, 11.6 MB, runs through OpenCV's DNN module (no extra runtime on the Pi) |
+| Export (shipped) | ONNX opset 12, **256×256 input, FP16 weights, 6.1 MB**, runs through OpenCV's DNN module (no extra runtime on the Pi). Compressed from the 12.1 MB / 320×320 export — see "Compression" below |
 
 **Held-out test set (92 images, 187 boxes — never used for training or checkpoint selection):**
 
 | Evaluator | Precision | Recall | mAP50 | mAP50-95 |
 |---|---|---|---|---|
 | ultralytics, PyTorch weights | 0.65 | 0.53 | 0.546 | 0.263 |
-| **Deployed path** (ONNX + OpenCV DNN + our decode/NMS), `evaluate_onnx.py` | 0.64 | 0.49 | AP50 0.511 | — |
+| **Deployed path, shipped model** (256, FP16; ONNX + OpenCV DNN + our decode/NMS), `evaluate_onnx.py` | 0.68 | 0.49 | AP50 0.538 | — |
+| Deployed path, original 320 full-precision export (no longer shipped) | 0.64 | 0.49 | AP50 0.511 | — |
 
-The deployed-path numbers are the ones to quote. They are identical under OpenCV 4.8.1, 4.10.0 and 5.0.0, so the model behaves the same across the OpenCV versions a Pi might ship. At the 0.35 operating threshold on the test set: 91 true detections, 51 false alarms, 96 missed potholes. Speed: ~32–36 ms/frame on a laptop CPU (i5-13420H, OpenCV 4.x); a Pi 3B will be roughly an order of magnitude slower — **an estimate, measure it** (see `docs/PI3B_LOW_RAM_SETUP.md`).
+The deployed-path numbers are the ones to quote. AP50 is identical under OpenCV 4.8.1, 4.10.0 and 5.0.0 (precision differed by 0.01 on 5.0 from one borderline detection), so the model behaves the same across the OpenCV versions a Pi might ship. At the 0.35 operating threshold on the test set the shipped model gives 92 true detections, 44 false alarms and 95 missed potholes. Speed: ~12–18 ms/frame on a laptop CPU (i5-13420H); a Pi 3B will be much slower — **an estimate, measure it** with `vision/pi/src/benchmark.py`.
 
 ### What this means in plain terms
 
 It finds roughly half of the potholes it is shown and roughly one detection in three is wrong. That is a useful *"something odd on the ground ahead"* nudge, **not** a safety system — which is why the architecture only lets it produce a spoken/haptic **warning** and never the brake. Braking stays with the ESP32's ToF/ultrasonic sensors, which measure real distance.
+
+## Compression (why the shipped model is 256 / FP16)
+
+The original export was 12.1 MB at 320×320. `compress_model.py` makes it smaller in two independent ways. Each was scored on the same 92 held-out test images with OpenCV (the code path the Pi runs), after rebuilding the dataset split from scratch and confirming it reproduced the original numbers exactly:
+
+| Variant | File | AP50 | Precision | Recall | Hits / false alarms / misses |
+|---|---|---|---|---|---|
+| 320, full precision (original) | 12.14 MB | 0.511 | 0.641 | 0.487 | 91 / 51 / 96 |
+| 320, FP16 | 6.11 MB | 0.511 | 0.636 | 0.487 | 91 / 52 / 96 |
+| 256, full precision | 12.12 MB | 0.538 | 0.682 | 0.492 | 92 / 43 / 95 |
+| **256, FP16 (shipped)** | **6.10 MB** | **0.538** | **0.677** | **0.492** | **92 / 44 / 95** |
+| 224, FP16 | 6.10 MB | 0.542 | 0.672 | 0.492 | 92 / 45 / 95 |
+
+- **FP16 halves the file** with no measurable accuracy change. It does **not** reduce RAM or speed: OpenCV expands the weights back to 32-bit when it loads the model. It helps disk space and download time only.
+- **A smaller input is what makes it faster.** Compute scales with the square of the size, so 256 is about 36% less work than 320 (224 is about 51% less). A fully convolutional network can be exported at a new size without retraining.
+- **Why 256 and not 224:** the 224 score was not meaningfully better, and a smaller input loses small or distant potholes first. 256 is the compromise. Re-run `evaluate_onnx.py` on your own walker footage before going lower.
+- **Caution on the numbers:** the lower-resolution models scoring slightly *higher* than 320 is within what 92 test images can produce by chance. Read it as "no loss detected", not "256 is better".
+- **Not tried:** INT8 quantization. OpenCV's DNN module cannot run the usual ONNX INT8 format, and the alternatives (onnxruntime on a 1 GB Pi, or a TensorFlow Lite conversion) add heavy dependencies; the speed benefit on a Pi 3B is unmeasured. Worth trying only if the benchmark shows the Pi is too slow even at 256.
+
+Reproduce: `python training/compress_model.py --weights training/runs/hazard/weights/best.pt` (add `--imgsz 320 --no-fp16` for the original). `train_hazard_model.py` now exports this compact model by default.
 
 ## Known limitations (read before trusting it)
 

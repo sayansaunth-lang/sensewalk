@@ -1,5 +1,5 @@
 {
-  "model": "hazard_yolov8n_320.onnx",
+  "model": "hazard_yolov8n_256_fp16.onnx",
   "base_weights": "yolov8n.pt",
   "imgsz": 320,
   "epochs_requested": 100,
@@ -18,5 +18,8 @@
     "mAP50": 0.546,
     "mAP50_95": 0.2627
   },
-  "note": "Metrics are from ultralytics' evaluator on the PyTorch weights; run evaluate_onnx.py for the deployed OpenCV-DNN path."
+  "note": "Validation/test metrics are ultralytics' evaluator on the PyTorch weights (trained and scored at 320). The shipped file is the same weights exported at 256 with FP16; its deployed-path scores are in hazard_deployed_eval_test.json.",
+  "export_imgsz": 256,
+  "fp16_weights": true,
+  "parameters": 3011043
 }

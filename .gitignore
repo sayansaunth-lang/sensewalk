@@ -50,7 +50,7 @@ secrets.*
 # The *exported* hazard model is the one deliberate exception below.
 training/runs/
 training/**/*.pt
-!vision/pi/models/hazard_yolov8n_320.onnx
+!vision/pi/models/hazard_yolov8n_*.onnx
 
 # Downloaded by vision/pi/models/*.sh, not committed
 vision/pi/models/MobileNetSSD_deploy.prototxt

@@ -52,7 +52,7 @@ Spec lives in [`comms/PROTOCOL.md`](../comms/PROTOCOL.md), implemented on both s
 | UART wire codec (both languages) | `comms/PROTOCOL.md`, `comms/python/protocol.py`, `firmware/esp32/src/comms/uart_protocol.h` |
 | Fusion state machine | `fusion/state_machine.py` |
 | Vision (camera/detection/OCR) | `vision/pi/src/` |
-| Training the custom ground-hazard model (potholes) | `training/` (output: `vision/pi/models/hazard_yolov8n_320.onnx`) |
+| Training the custom ground-hazard model (potholes) | `training/` (output: `vision/pi/models/hazard_yolov8n_256_fp16.onnx`) |
 | Speech + buzzer fallback | `speech/` |
 | Test tooling & logged results | `test/` |
 

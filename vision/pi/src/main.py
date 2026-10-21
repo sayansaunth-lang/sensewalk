@@ -82,7 +82,7 @@ def main() -> int:
         default=None,
         metavar="PATH.onnx",
         help="also run the project's own trained ground-hazard detector (potholes etc., see training/). "
-        "Bare flag uses vision/pi/models/hazard_yolov8n_320.onnx. Costs extra CPU per inference — "
+        "Bare flag uses vision/pi/models/hazard_yolov8n_256_fp16.onnx. Costs extra CPU per inference — "
         "raise --process-every-n-frames on a Pi 3B.",
     )
     parser.add_argument(

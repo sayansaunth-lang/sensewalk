@@ -24,12 +24,15 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from compress_model import export_compressed, model_filename  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_EXPORT_DIR = REPO_ROOT / "vision" / "pi" / "models"
-MODEL_FILENAME = "hazard_yolov8n_320.onnx"
+EXPORT_IMGSZ = 256  # smaller than the 320 training size: ~36% less compute, measured no accuracy loss (see compress_model.py)
 CLASSES_FILENAME = "hazard_classes.txt"
 
 
@@ -61,6 +64,8 @@ def main() -> int:
     p.add_argument("--project", default=str(REPO_ROOT / "training" / "runs"))
     p.add_argument("--name", default="hazard")
     p.add_argument("--export-dir", default=str(DEFAULT_EXPORT_DIR))
+    p.add_argument("--export-imgsz", type=int, default=EXPORT_IMGSZ, help="input size of the exported Pi model")
+    p.add_argument("--no-fp16", action="store_true", help="export full-precision weights instead of FP16")
     p.add_argument("--results-json", default=str(REPO_ROOT / "training" / "results" / "hazard_metrics.json"))
     args = p.parse_args()
 
@@ -97,17 +102,18 @@ def main() -> int:
     print("validation:", val_metrics)
     print("test (held out):", test_metrics)
 
-    exported = Path(best.export(format="onnx", imgsz=args.imgsz, opset=12, simplify=True, dynamic=False, device="cpu"))
     export_dir = Path(args.export_dir)
-    export_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(exported, export_dir / MODEL_FILENAME)
+    exported = export_compressed(best_pt, export_dir, args.export_imgsz, not args.no_fp16)
+    MODEL_FILENAME = exported.name
     names = best.names  # {0: 'pothole', ...}
     (export_dir / CLASSES_FILENAME).write_text("\n".join(names[i] for i in sorted(names)) + "\n")
 
     results = {
         "model": MODEL_FILENAME,
         "base_weights": args.weights,
-        "imgsz": args.imgsz,
+        "train_imgsz": args.imgsz,
+        "export_imgsz": args.export_imgsz,
+        "fp16_weights": not args.no_fp16,
         "epochs_requested": args.epochs,
         "classes": [names[i] for i in sorted(names)],
         "validation": val_metrics,
