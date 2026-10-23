@@ -25,6 +25,13 @@
 // Pin assignments
 // ---------------------------------------------------------------------------
 
+// ESP32-S3 pin rules (the first draft used classic-ESP32 pin numbers; GPIO26-35 are
+// flash/PSRAM lines on the S3 and driving them crashes the chip, GPIO19/20 are the
+// native USB pins, GPIO25 does not exist). Verified by firmware/esp32/test/test_pin_map.
+// Avoid: 0 3 45 46 (strapping), 19 20 (USB), 22-25 (absent), 26-37 (flash/PSRAM), 43 44 (UART0).
+// Safe to use: 1-18, 21, 38-42, 47, 48.
+
+
 // I2C bus (shared by both VL53L1X ToF sensors via distinct addresses, and
 // the MPU-6050) — ESP32-S3 default I2C pins.
 constexpr int PIN_I2C_SDA = 8;
@@ -44,24 +51,24 @@ constexpr uint8_t TOF_GND_I2C_ADDR = 0x31;
 constexpr int PIN_US_L_TRIG = 12;
 constexpr int PIN_US_L_ECHO = 13;
 constexpr int PIN_US_C_TRIG = 14;
-constexpr int PIN_US_C_ECHO = 27;
-constexpr int PIN_US_R_TRIG = 26;
-constexpr int PIN_US_R_ECHO = 25;
+constexpr int PIN_US_C_ECHO = 15;
+constexpr int PIN_US_R_TRIG = 38;
+constexpr int PIN_US_R_ECHO = 39;
 
 // Piezoelectric grip sensors (analog, threshold-based presence detection).
-constexpr int PIN_GRIP_LEFT_ADC = 34;
-constexpr int PIN_GRIP_RIGHT_ADC = 35;
+constexpr int PIN_GRIP_LEFT_ADC = 1;
+constexpr int PIN_GRIP_RIGHT_ADC = 2;
 
 // Solenoid brake drivers — one GPIO per channel into an IRF520 MOSFET
 // module gate (see docs/BOM.md). LOW-side switching: HIGH = solenoid
 // energised = brake engaged.
-constexpr int PIN_BRAKE_LEFT = 32;
-constexpr int PIN_BRAKE_RIGHT = 33;
+constexpr int PIN_BRAKE_LEFT = 40;
+constexpr int PIN_BRAKE_RIGHT = 41;
 
 // Coin vibration motors (haptic feedback), each via a 2N2222 transistor
 // driver stage, PWM-capable pins.
 constexpr int PIN_HAPTIC_LEFT = 21;
-constexpr int PIN_HAPTIC_RIGHT = 19;
+constexpr int PIN_HAPTIC_RIGHT = 42;
 
 // UART2 to the Raspberry Pi (comms/PROTOCOL.md). Serial (UART0) is left
 // free for USB debug logging.

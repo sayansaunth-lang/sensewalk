@@ -11,14 +11,14 @@ Pin assignments are defined once in [`firmware/esp32/include/config.h`](../firmw
 | ToF forward XSHUT | GPIO4 | VL53L1X (forward-facing) | Held LOW at boot, then HIGH to bring the sensor up and reassign its address — see `sensors/tof.h` |
 | ToF ground XSHUT | GPIO5 | VL53L1X (downward-facing) | Same XSHUT dance, brought up first |
 | Ultrasonic L trig/echo | GPIO12 / GPIO13 | HC-SR04 (left) | |
-| Ultrasonic C trig/echo | GPIO14 / GPIO27 | HC-SR04 (center) | |
-| Ultrasonic R trig/echo | GPIO26 / GPIO25 | HC-SR04 (right) | Triggered sequentially, never simultaneously — see B2's cross-talk warning |
-| Grip left (analog) | GPIO34 | Piezoelectric thin-film sensor (left handle) | Input-only ADC pin on most ESP32 variants — confirm this is valid on the specific S3 dev board purchased |
-| Grip right (analog) | GPIO35 | Piezoelectric thin-film sensor (right handle) | Same caveat |
-| Brake left | GPIO32 | IRF520 MOSFET gate (left solenoid channel) | Active-HIGH: HIGH energises the solenoid |
-| Brake right | GPIO33 | IRF520 MOSFET gate (right solenoid channel) | |
+| Ultrasonic C trig/echo | GPIO14 / GPIO15 | HC-SR04 (center) | |
+| Ultrasonic R trig/echo | GPIO38 / GPIO39 | HC-SR04 (right) | Triggered sequentially, never simultaneously — see B2's cross-talk warning |
+| Grip left (analog) | GPIO1 | Piezoelectric thin-film sensor (left handle) | ADC1 channel on the S3 (usable with no Wi-Fi conflict) |
+| Grip right (analog) | GPIO2 | Piezoelectric thin-film sensor (right handle) | ADC1 channel |
+| Brake left | GPIO40 | IRF520 MOSFET gate (left solenoid channel) | Active-HIGH: HIGH energises the solenoid |
+| Brake right | GPIO41 | IRF520 MOSFET gate (right solenoid channel) | |
 | Haptic left | GPIO21 | 2N2222 base (left vibration motor) | PWM via `ledcWrite`, 0-255 intensity |
-| Haptic right | GPIO19 | 2N2222 base (right vibration motor) | |
+| Haptic right | GPIO42 | 2N2222 base (right vibration motor) | |
 | UART2 TX | GPIO17 | Pi GPIO15 (RXD) | |
 | UART2 RX | GPIO16 | Pi GPIO14 (TXD) | |
 | Common ground | — | Pi GND | **Non-negotiable** — a floating ground between the two boards is the single most common cause of a "flaky" UART link that looks like a software bug |
