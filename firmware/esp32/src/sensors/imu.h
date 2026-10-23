@@ -15,6 +15,7 @@
 #include <cstdint>
 
 #include "config.h"
+#include "sim/sensors.h"
 #include "safety/hazard_rules.h"
 
 namespace sensewalk::sensors {
@@ -27,6 +28,9 @@ namespace sensewalk::sensors {
 class Imu {
 public:
     bool begin() {
+#ifdef SENSEWALK_SIM_SENSORS
+        return true;  // no hardware: readings come from the simulated scenario
+#endif
         if (!mpu_.begin()) return false;
         mpu_.setAccelerometerRange(MPU6050_RANGE_8_G);
         mpu_.setGyroRange(MPU6050_RANGE_500_DEG);
@@ -37,6 +41,18 @@ public:
 
     // Call every SENSOR_POLL_INTERVAL_MS tick.
     void poll() {
+#ifdef SENSEWALK_SIM_SENSORS
+        {
+            const sim::Frame f = sim::now();
+            publishedPitchCentideg_.store(0, std::memory_order_relaxed);
+            publishedRollCentideg_.store(f.fall ? 4000 : 0, std::memory_order_relaxed);
+            publishedAccelMilliG_.store(f.fall ? 3000 : 1000, std::memory_order_relaxed);
+            publishedFallMin_.store(f.fall ? 200 : 1000, std::memory_order_relaxed);
+            publishedFallMax_.store(f.fall ? 3000 : 1000, std::memory_order_relaxed);
+            publishedFallOrientDelta_.store(f.fall ? 4000 : 0, std::memory_order_relaxed);
+            return;
+        }
+#endif
         sensors_event_t accelEvent, gyroEvent, tempEvent;
         mpu_.getEvent(&accelEvent, &gyroEvent, &tempEvent);
 

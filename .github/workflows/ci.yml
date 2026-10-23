@@ -34,6 +34,9 @@ jobs:
       - name: Build firmware for esp32-s3-devkitc-1
         working-directory: firmware/esp32
         run: pio run -e esp32-s3-devkitc-1
+      - name: Build the simulated-sensor firmware (PlatformIO)
+        working-directory: firmware/esp32
+        run: pio run -e esp32-s3-sim
 
   firmware-native-tests:
     name: Firmware host-native unit tests (safety rules, UART codec)
@@ -77,7 +80,14 @@ jobs:
           for sk in SENSEWALK_blink_test SENSEWALK_ESP32 SENSEWALK_i2c_scan SENSEWALK_tof_test SENSEWALK_vl53l0x_test; do
             arduino-cli compile --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc --export-binaries firmware/esp32_arduino_ide/$sk
           done
-          mkdir -p flash && find firmware/esp32_arduino_ide -name "*.ino.merged.bin" -exec cp {} flash/ \;
+          # Simulated-sensor build: same sketch with SENSEWALK_SIM_SENSORS defined (demo only)
+          rm -rf sim_build && mkdir sim_build
+          cp -r firmware/esp32_arduino_ide/SENSEWALK_ESP32 sim_build/SENSEWALK_ESP32_SIM
+          mv sim_build/SENSEWALK_ESP32_SIM/SENSEWALK_ESP32.ino sim_build/SENSEWALK_ESP32_SIM/SENSEWALK_ESP32_SIM.ino
+          sed -i 's|^// #define SENSEWALK_SIM_SENSORS|#define SENSEWALK_SIM_SENSORS|' sim_build/SENSEWALK_ESP32_SIM/config.h
+          grep -q '^#define SENSEWALK_SIM_SENSORS' sim_build/SENSEWALK_ESP32_SIM/config.h
+          arduino-cli compile --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc --export-binaries sim_build/SENSEWALK_ESP32_SIM
+          mkdir -p flash && find firmware/esp32_arduino_ide sim_build -name "*.ino.merged.bin" -exec cp {} flash/ \;
       - name: Upload flashable binaries
         uses: actions/upload-artifact@v4
         with:

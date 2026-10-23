@@ -7,6 +7,7 @@
 #include <cstdint>
 
 #include "config.h"
+#include "sim_sensors.h"
 #include "hazard_rules.h"
 
 namespace sensewalk::sensors {
@@ -23,6 +24,14 @@ public:
     }
 
     void poll() {
+#ifdef SENSEWALK_SIM_SENSORS
+        {
+            const sim::Frame f = sim::now();
+            leftRaw_ = f.gripLeftRaw;
+            rightRaw_ = f.gripRightRaw;
+            return;
+        }
+#endif
         leftRaw_ = analogRead(PIN_GRIP_LEFT_ADC);
         rightRaw_ = analogRead(PIN_GRIP_RIGHT_ADC);
     }

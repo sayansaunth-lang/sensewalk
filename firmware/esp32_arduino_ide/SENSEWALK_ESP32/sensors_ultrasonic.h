@@ -11,6 +11,7 @@
 #include <cstdint>
 
 #include "config.h"
+#include "sim_sensors.h"
 
 namespace sensewalk::sensors {
 
@@ -32,6 +33,15 @@ public:
     // the next sensor each call so all three get serviced across three
     // consecutive ticks without ever overlapping pulses.
     void poll() {
+#ifdef SENSEWALK_SIM_SENSORS
+        {
+            const sim::Frame f = sim::now();
+            channels_[0].lastCm.store(f.usLeftCm, std::memory_order_relaxed);
+            channels_[1].lastCm.store(f.usCenterCm, std::memory_order_relaxed);
+            channels_[2].lastCm.store(f.usRightCm, std::memory_order_relaxed);
+            return;
+        }
+#endif
         Channel& ch = channels_[nextIndex_];
         ch.lastCm.store(readOnce(ch.trigPin, ch.echoPin), std::memory_order_relaxed);
         nextIndex_ = (nextIndex_ + 1) % 3;

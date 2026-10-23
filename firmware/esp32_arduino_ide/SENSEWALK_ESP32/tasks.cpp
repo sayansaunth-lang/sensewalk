@@ -5,6 +5,7 @@
 #include <freertos/task.h>
 
 #include "config.h"
+#include "sim_sensors.h"
 #include "globals.h"
 #include "hazard_rules.h"
 
@@ -16,11 +17,34 @@ using namespace sensewalk::globals;
 void safetyTask(void*) {
     const TickType_t period = pdMS_TO_TICKS(SENSOR_POLL_INTERVAL_MS);
     TickType_t lastWake = xTaskGetTickCount();
+#ifdef SENSEWALK_SIM_SENSORS
+    int lastPhaseId = -1;
+#endif
     for (;;) {
         tof.poll();
         grip.poll();
 
         bool changed = safetyOverride.update(tof, ultrasonic, grip, brake);
+#ifdef SENSEWALK_SIM_SENSORS
+        {
+            const sim::Frame f = sim::now();
+            if (f.phaseId != lastPhaseId) {
+                lastPhaseId = f.phaseId;
+                Serial.printf("\n[sim] t=%lus  phase %u: %s\n",
+                              static_cast<unsigned long>((millis() % sim::kLoopMs) / 1000),
+                              static_cast<unsigned>(f.phaseId), f.phase);
+            }
+            if (changed) {
+                Serial.printf("[sim] BRAKE %s  (fwd=%umm gnd=%umm usL=%ucm grips=%u, decision step %lu us)\n",
+                              brake.isEngaged() ? "ENGAGED" : "released",
+                              static_cast<unsigned>(tof.forwardMm()),
+                              static_cast<unsigned>(tof.groundMm()),
+                              static_cast<unsigned>(ultrasonic.leftCm()),
+                              static_cast<unsigned>(grip.bitmask()),
+                              static_cast<unsigned long>(safetyOverride.lastEngageLatencyUs()));
+            }
+        }
+#endif
         if (changed) {
             uartLink.sendInt("brake_state", brake.isEngaged() ? 1 : 0);
             if (brake.isEngaged() && !safetyOverride.meetsLatencyBudget()) {
@@ -58,6 +82,15 @@ void imuTask(void*) {
         imu.poll();
         if (safety::isFallDetected(imu.fallFeatures())) {
             uartLink.sendInt("fall", 1);
+#ifdef SENSEWALK_SIM_SENSORS
+            {
+                static uint32_t lastFallLogMs = 0;
+                if (millis() - lastFallLogMs > 2000) {
+                    lastFallLogMs = millis();
+                    Serial.println("[sim] FALL detected by the real fall rule -> fall=1 sent to the Pi");
+                }
+            }
+#endif
         }
         vTaskDelayUntil(&lastWake, period);
     }

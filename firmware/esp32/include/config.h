@@ -13,6 +13,12 @@
 
 #pragma once
 
+// Simulated-sensor mode (bench demo with NO sensors attached). Uncomment the
+// next line, or build the SIM firmware, to replace only the sensor readings
+// with a scripted 40 s scenario (see the sim sensors header). The hazard rules,
+// safety override, brake and UART code stay real. NEVER use on a real walker.
+// #define SENSEWALK_SIM_SENSORS
+
 #include <cstdint>
 
 // ---------------------------------------------------------------------------

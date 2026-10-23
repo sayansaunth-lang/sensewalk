@@ -60,6 +60,11 @@ public:
             size_t len = encodeLine(line, sizeof(line), outMsg.tag, outMsg.value, seqOut_);
             if (len > 0) {
                 Serial2.write(reinterpret_cast<const uint8_t*>(line), len);
+#ifdef SENSEWALK_SIM_SENSORS
+                // Mirror every frame to USB so a laptop can stand in for the Pi
+                // (it ignores the human-readable log lines: they fail the checksum).
+                Serial.write(reinterpret_cast<const uint8_t*>(line), len);
+#endif
                 seqOut_ = (seqOut_ + 1) % 65536;
             }
         }

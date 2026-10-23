@@ -9,6 +9,7 @@
 #include <cstdint>
 
 #include "config.h"
+#include "sim/sensors.h"
 #include "safety/hazard_rules.h"
 
 namespace sensewalk::sensors {
@@ -17,6 +18,10 @@ class ToFPair {
 public:
     // Call once from setup(), after Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL).
     bool begin() {
+#ifdef SENSEWALK_SIM_SENSORS
+        gndBaselineMm_ = sim::kLevelGroundMm;
+        return true;  // no hardware: readings come from the simulated scenario
+#endif
         pinMode(PIN_TOF_FWD_XSHUT, OUTPUT);
         pinMode(PIN_TOF_GND_XSHUT, OUTPUT);
         digitalWrite(PIN_TOF_FWD_XSHUT, LOW);
@@ -55,6 +60,17 @@ public:
 
     // Call every SENSOR_POLL_INTERVAL_MS from the sensing task.
     void poll() {
+#ifdef SENSEWALK_SIM_SENSORS
+        {
+            const sim::Frame f = sim::now();
+            lastFwdMm_ = f.fwdMm;
+            lastGndMm_ = f.gndMm;
+            if (safety::isValidToFReading(f.gndMm)) {
+                gndBaselineMm_ = static_cast<uint16_t>((gndBaselineMm_ * 15 + f.gndMm) / 16);
+            }
+            return;
+        }
+#endif
         if (fwd_.dataReady()) {
             lastFwdMm_ = fwd_.read() ? fwd_.ranging_data.range_mm : safety::TOF_NO_TARGET;
         }

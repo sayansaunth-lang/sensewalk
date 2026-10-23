@@ -15,6 +15,9 @@ void setup() {
     Serial.begin(115200);
     delay(200);  // let USB-serial enumerate before the first log line
     Serial.println("\n[SENSEWALK] ESP32-S3 firmware starting...");
+#ifdef SENSEWALK_SIM_SENSORS
+    Serial.println("[SENSEWALK] *** SIMULATED SENSORS: demo only, NOT safe for a real walker ***");
+#endif
 
     bool criticalSensorsOk = sensewalk::globals::beginAll();
     if (!criticalSensorsOk) {
