@@ -64,11 +64,13 @@ jobs:
           arduino-cli lib install "VL53L1X" "Adafruit MPU6050"
       - name: Compile the bring-up blink test
         run: arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32_arduino_ide/SENSEWALK_blink_test
+      - name: Compile the I2C wiring scanner
+        run: arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32_arduino_ide/SENSEWALK_i2c_scan
       - name: Compile the full firmware sketch
         run: arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32_arduino_ide/SENSEWALK_ESP32
       - name: Export flashable binaries (USB-CDC serial output on)
         run: |
-          for sk in SENSEWALK_blink_test SENSEWALK_ESP32; do
+          for sk in SENSEWALK_blink_test SENSEWALK_ESP32 SENSEWALK_i2c_scan; do
             arduino-cli compile --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc --export-binaries firmware/esp32_arduino_ide/$sk
           done
           mkdir -p flash && find firmware/esp32_arduino_ide -name "*.ino.merged.bin" -exec cp {} flash/ \;
