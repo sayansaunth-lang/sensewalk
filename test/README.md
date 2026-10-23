@@ -40,3 +40,7 @@ which prints true/false positive/negative counts and rates.
 ## Honesty rule
 
 Every table above exists to be quoted with real numbers in the final report, including when those numbers are worse than a tutorial's cherry-picked demo. An honest "detects potholes 80% of the time under these lighting/speed conditions" is a stronger engineering result than an unverified claim of perfection — this is stated explicitly in the learning roadmap's closing notes, and it's the whole reason this directory exists instead of just a demo video.
+
+## `sim_check.py` — verify the simulated-sensor firmware on a real ESP32-S3
+
+`python test/sim_check.py --port COM7 --seconds 45` listens like the Pi would: it decodes the mirrored UART frames with the real Python codec and checks the 40 s scenario produced the required behaviour (brake engages for a forward obstacle, a drop-off and a side obstacle; releases only with hands on the grips; the fall rule fires; no checksum failures or dropped messages). It proves the firmware's decision code, UART encoder and Python decoder agree on real hardware. It does **not** prove anything about real sensors or the sensor-to-brake time. Opening the port resets the board, which is normal.

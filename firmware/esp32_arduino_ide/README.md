@@ -55,3 +55,18 @@ This firmware alone doesn't validate hazard-detection accuracy — it just bring
 - Check `docs/DATASHEET_GOTCHAS.md` and `docs/WIRING.md` for per-component wiring warnings before assuming a "no reading" is a code bug rather than a wiring one.
 - Every threshold in `config.h` marked `TODO(calibrate)` is a placeholder — use `test/bench_logger.py` (from the Pi or a laptop connected to the ESP32's USB serial) to log real sensor readings and replace those numbers with measured ones, per the learning roadmap's B2/D2 modules.
 - The Raspberry Pi side (`vision/`, `fusion/`, `speech/`, `comms/python/`) is a separate piece — this Arduino sketch only covers the ESP32 half of the system. See the main [README.md](../../README.md) for the whole picture.
+
+## Bring-up tools and simulated-sensor mode
+
+| Sketch / build | Use it to |
+|---|---|
+| `SENSEWALK_blink_test` | Prove the board, USB cable and toolchain work. |
+| `SENSEWALK_i2c_scan` | List what answers on SDA=GPIO8 / SCL=GPIO9 and tell a VL53L1X from a VL53L0X (same address 0x29). |
+| `SENSEWALK_tof_test` / `SENSEWALK_vl53l0x_test` | Print live distance from one VL53L1X / VL53L0X. |
+| `SENSEWALK_ESP32` with `// #define SENSEWALK_SIM_SENSORS` **uncommented** in `config.h` | Run the whole firmware with **no sensors attached**. Only the readings are scripted (a 40 s loop: obstacle, drop-off, hands off, side obstacle, fall); the hazard rules, safety override, brake and UART code are the real ones. Progress prints on the USB serial monitor, and every UART frame is mirrored to USB so a laptop can stand in for the Pi. |
+
+CI also publishes ready-to-flash binaries (artifact `esp32s3-firmware`, including `SENSEWALK_ESP32_SIM`). Flash with
+`python -m esptool --port COM7 write-flash 0x0 SENSEWALK_ESP32_SIM.ino.merged.bin`, then check it with
+`python test/sim_check.py --port COM7 --seconds 45`.
+
+The simulated build says "SIMULATED SENSORS" on boot. It always reports a clear path when nothing is wrong, so **never** put it on a real walker.

@@ -127,18 +127,24 @@ class LineAssembler:
 
 
 class SequenceTracker:
-    """Tracks per-tag sequence numbers to count gaps (drops) without ever
-    blocking or rejecting a message because of a gap — sequence is
-    informational only, per PROTOCOL.md."""
+    """Counts dropped messages from the sender's sequence numbers without ever
+    blocking or rejecting a message because of a gap — sequence is informational
+    only, per PROTOCOL.md.
+
+    `seq` is the sender's *single* message counter shared by every tag (the ESP32
+    increments one counter for each line it writes), so the stream is tracked as a
+    whole. Tracking per tag would report a false gap on nearly every message from a
+    real ESP32, which interleaves a dozen tags. A gap is attributed to the tag of
+    the message that revealed it."""
 
     def __init__(self) -> None:
-        self._last_seq: dict[str, int] = {}
+        self._last_seq: Optional[int] = None
         self.gaps_by_tag: dict[str, int] = {}
 
     def observe(self, msg: Message) -> Optional[int]:
-        """Returns the gap size (0 = consecutive) or None on the first message for this tag."""
-        last = self._last_seq.get(msg.tag)
-        self._last_seq[msg.tag] = msg.seq
+        """Returns the gap size (0 = consecutive) or None on the first message seen."""
+        last = self._last_seq
+        self._last_seq = msg.seq
         if last is None:
             return None
         expected = (last + 1) % 65536

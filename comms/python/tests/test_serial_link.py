@@ -34,3 +34,19 @@ def test_feed_processes_multiple_messages_and_tracks_gaps():
     link.feed(protocol.encode("us_l", "30", 0))
     link.feed(protocol.encode("us_l", "31", 2))  # gap of 1
     assert link.stats.gaps_by_tag["us_l"] == 1
+
+
+def test_one_global_counter_across_interleaved_tags_is_not_a_gap():
+    # The ESP32 numbers every line it sends with one counter, whatever the tag.
+    link = SerialLink(port="/dev/null")
+    for seq, (tag, value) in enumerate([("tof_fwd", "900"), ("us_l", "30"), ("grip", "3"), ("heartbeat", "1"), ("tof_fwd", "905")]):
+        link.feed(protocol.encode(tag, value, seq))
+    assert sum(link.stats.gaps_by_tag.values()) == 0
+
+
+def test_dropped_message_in_interleaved_stream_is_counted_once():
+    link = SerialLink(port="/dev/null")
+    link.feed(protocol.encode("tof_fwd", "900", 0))
+    link.feed(protocol.encode("us_l", "30", 1))
+    link.feed(protocol.encode("grip", "3", 3))  # seq 2 was lost
+    assert sum(link.stats.gaps_by_tag.values()) == 1

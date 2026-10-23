@@ -52,6 +52,10 @@ def main() -> int:
     brake_state_msgs: list[str] = []
     buf = b""
     t0 = time.time()
+    # Opening the port resets the board (USB-Serial/JTAG), so bytes buffered before the reset
+    # belong to the previous run. Start analysing at the boot banner (or after 4 s if the board
+    # did not reset).
+    started = False
     while time.time() - t0 < args.seconds:
         buf += ser.read(1024)
         while b"\n" in buf:
@@ -60,6 +64,12 @@ def main() -> int:
             if not text:
                 continue
             now = time.time() - t0
+            if "SIMULATED SENSORS" in text:
+                started = True
+            if not started and now > 4.0:
+                started = True
+            if not started:
+                continue
             m = PHASE_RE.search(text)
             if m:
                 events.append((now, f"phase {m.group(2)}: {m.group(3)}"))
@@ -81,8 +91,9 @@ def main() -> int:
                 continue
             frames += 1
             tags[msg.tag] = tags.get(msg.tag, 0) + 1
-            if seqs.observe(msg):
-                gaps += 1
+            gap = seqs.observe(msg)
+            if gap:
+                gaps += gap
             if msg.tag == "fall":
                 fall_msgs += 1
             if msg.tag == "brake_state":
@@ -108,6 +119,7 @@ def main() -> int:
         ("telemetry decoded (tof_fwd, grip, imu)", all(tags.get(t, 0) > 0 for t in ("tof_fwd", "grip", "imu"))),
         ("brake_state 1/0 messages sent to the Pi", "1" in brake_state_msgs and "0" in brake_state_msgs),
         ("no checksum failures on decoded frames", bad == 0),
+        ("under 2% of messages dropped (sequence gaps)", frames > 0 and gaps / frames < 0.02),
     ]
     print("\n=== checks ===")
     for name, ok in checks:
