@@ -41,8 +41,7 @@ static void identify_0x29() {
     Wire.endTransmission(false);
     n = Wire.requestFrom((uint8_t)0x29, (uint8_t)1);
     uint8_t id8 = n == 1 ? Wire.read() : 0;
-    Serial.printf("      ID probe: reg0x010F=0x%04X (VL53L1X=0xEACC), reg0xC0=0x%02X (VL53L0X=0xEE)
-", id16, id8);
+    Serial.printf("      ID probe: reg0x010F=0x%04X (VL53L1X=0xEACC), reg0xC0=0x%02X (VL53L0X=0xEE)\n", id16, id8);
     if (id16 == 0xEACC) Serial.println("      => this IS a VL53L1X");
     else if (id8 == 0xEE) Serial.println("      => this is a VL53L0X, NOT a VL53L1X (wrong library/firmware for it)");
     else Serial.println("      => unrecognised chip at 0x29");
