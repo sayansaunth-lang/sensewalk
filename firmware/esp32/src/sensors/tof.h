@@ -5,7 +5,12 @@
 // address (B2 in the learning roadmap).
 #pragma once
 
+#include "config.h"  // defines (or not) SENSEWALK_TOF_VL53L0X_FORWARD_ONLY
+#ifdef SENSEWALK_TOF_VL53L0X_FORWARD_ONLY
+#include <VL53L0X.h>
+#else
 #include <VL53L1X.h>
+#endif
 #include <cstdint>
 
 #include "config.h"
@@ -14,6 +19,7 @@
 
 namespace sensewalk::sensors {
 
+#ifndef SENSEWALK_TOF_VL53L0X_FORWARD_ONLY
 class ToFPair {
 public:
     // Call once from setup(), after Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL).
@@ -97,5 +103,45 @@ private:
     uint16_t lastGndMm_ = safety::TOF_NO_TARGET;
     uint16_t gndBaselineMm_ = 0;
 };
+#else  // SENSEWALK_TOF_VL53L0X_FORWARD_ONLY
+
+// Single VL53L0X, forward-facing only (for builds with just ONE proximity sensor).
+// There is NO ground sensor in this configuration, so ground drop-off detection is
+// disabled: groundMm() always reports "no target" and isGroundDropoff() can never fire.
+// The forward obstacle brake works as normal, but only to ~1.2 m (VL53L0X), which is
+// enough for the 300 mm brake threshold and not for early warning. Bench/prototype only.
+class ToFPair {
+public:
+    bool begin() {
+        pinMode(PIN_TOF_FWD_XSHUT, OUTPUT);
+        pinMode(PIN_TOF_GND_XSHUT, OUTPUT);
+        digitalWrite(PIN_TOF_GND_XSHUT, LOW);  // no ground sensor fitted
+        digitalWrite(PIN_TOF_FWD_XSHUT, HIGH);
+        delay(10);
+        fwd_.setTimeout(500);
+        if (!fwd_.init()) return false;
+        fwd_.setMeasurementTimingBudget(33000);
+        fwd_.startContinuous(SENSOR_POLL_INTERVAL_MS);
+        Serial.println("[tof] VL53L0X forward-only mode: NO ground drop-off detection");
+        return true;
+    }
+
+    void poll() {
+        // Non-blocking: only read when the sensor has a fresh result, so the safety task never waits.
+        if ((fwd_.readReg(VL53L0X::RESULT_INTERRUPT_STATUS) & 0x07) == 0) return;
+        const uint16_t mm = fwd_.readRangeContinuousMillimeters();
+        lastFwdMm_ = (fwd_.timeoutOccurred() || mm >= 8190) ? safety::TOF_NO_TARGET : mm;
+    }
+
+    uint16_t forwardMm() const { return lastFwdMm_; }
+    uint16_t groundMm() const { return safety::TOF_NO_TARGET; }
+    uint16_t groundBaselineMm() const { return 0; }
+
+private:
+    VL53L0X fwd_;
+    uint16_t lastFwdMm_ = safety::TOF_NO_TARGET;
+};
+
+#endif  // SENSEWALK_TOF_VL53L0X_FORWARD_ONLY
 
 }  // namespace sensewalk::sensors

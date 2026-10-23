@@ -19,6 +19,11 @@
 // safety override, brake and UART code stay real. NEVER use on a real walker.
 // #define SENSEWALK_SIM_SENSORS
 
+// One-sensor build: uncomment to use a single VL53L0X as the forward obstacle sensor
+// (no ground drop-off detection). Needs the "VL53L0X" library by Pololu. Do not combine
+// with SENSEWALK_SIM_SENSORS.
+// #define SENSEWALK_TOF_VL53L0X_FORWARD_ONLY
+
 #include <cstdint>
 
 // ---------------------------------------------------------------------------

@@ -37,6 +37,9 @@ jobs:
       - name: Build the simulated-sensor firmware (PlatformIO)
         working-directory: firmware/esp32
         run: pio run -e esp32-s3-sim
+      - name: Build the one-VL53L0X firmware (PlatformIO)
+        working-directory: firmware/esp32
+        run: pio run -e esp32-s3-one-l0x
 
   firmware-native-tests:
     name: Firmware host-native unit tests (safety rules, UART codec)
@@ -87,6 +90,12 @@ jobs:
           sed -i 's|^// #define SENSEWALK_SIM_SENSORS|#define SENSEWALK_SIM_SENSORS|' sim_build/SENSEWALK_ESP32_SIM/config.h
           grep -q '^#define SENSEWALK_SIM_SENSORS' sim_build/SENSEWALK_ESP32_SIM/config.h
           arduino-cli compile --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc --export-binaries sim_build/SENSEWALK_ESP32_SIM
+          # One-sensor build: a single VL53L0X as forward sensor (no drop-off detection)
+          cp -r firmware/esp32_arduino_ide/SENSEWALK_ESP32 sim_build/SENSEWALK_ESP32_ONE_L0X
+          mv sim_build/SENSEWALK_ESP32_ONE_L0X/SENSEWALK_ESP32.ino sim_build/SENSEWALK_ESP32_ONE_L0X/SENSEWALK_ESP32_ONE_L0X.ino
+          sed -i 's|^// #define SENSEWALK_TOF_VL53L0X_FORWARD_ONLY|#define SENSEWALK_TOF_VL53L0X_FORWARD_ONLY|' sim_build/SENSEWALK_ESP32_ONE_L0X/config.h
+          grep -q '^#define SENSEWALK_TOF_VL53L0X_FORWARD_ONLY' sim_build/SENSEWALK_ESP32_ONE_L0X/config.h
+          arduino-cli compile --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc --export-binaries sim_build/SENSEWALK_ESP32_ONE_L0X
           mkdir -p flash && find firmware/esp32_arduino_ide sim_build -name "*.ino.merged.bin" -exec cp {} flash/ \;
       - name: Upload flashable binaries
         uses: actions/upload-artifact@v4
