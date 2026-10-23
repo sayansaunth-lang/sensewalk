@@ -66,11 +66,13 @@ jobs:
         run: arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32_arduino_ide/SENSEWALK_blink_test
       - name: Compile the I2C wiring scanner
         run: arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32_arduino_ide/SENSEWALK_i2c_scan
+      - name: Compile the single-ToF bench test
+        run: arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32_arduino_ide/SENSEWALK_tof_test
       - name: Compile the full firmware sketch
         run: arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32_arduino_ide/SENSEWALK_ESP32
       - name: Export flashable binaries (USB-CDC serial output on)
         run: |
-          for sk in SENSEWALK_blink_test SENSEWALK_ESP32 SENSEWALK_i2c_scan; do
+          for sk in SENSEWALK_blink_test SENSEWALK_ESP32 SENSEWALK_i2c_scan SENSEWALK_tof_test; do
             arduino-cli compile --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc --export-binaries firmware/esp32_arduino_ide/$sk
           done
           mkdir -p flash && find firmware/esp32_arduino_ide -name "*.ino.merged.bin" -exec cp {} flash/ \;
