@@ -56,6 +56,7 @@ static int scan(int sda, int scl) {
         Wire.beginTransmission(addr);
         if (Wire.endTransmission() == 0) {
             Serial.printf("    found 0x%02X  %s\n", addr, name_of(addr));
+            if (addr == 0x29) identify_0x29();
             found++;
         }
     }
