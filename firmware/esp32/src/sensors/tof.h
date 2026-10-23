@@ -115,7 +115,9 @@ public:
     bool begin() {
         pinMode(PIN_TOF_FWD_XSHUT, OUTPUT);
         pinMode(PIN_TOF_GND_XSHUT, OUTPUT);
-        digitalWrite(PIN_TOF_GND_XSHUT, LOW);  // no ground sensor fitted
+        // Keep BOTH XSHUT lines high: the single sensor's XSHUT may be wired to either pin, and an
+        // unconnected one is harmless. (Driving the ground pin low silenced the sensor on real hardware.)
+        digitalWrite(PIN_TOF_GND_XSHUT, HIGH);
         digitalWrite(PIN_TOF_FWD_XSHUT, HIGH);
         delay(10);
         fwd_.setTimeout(500);
