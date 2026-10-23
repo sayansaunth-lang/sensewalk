@@ -61,18 +61,20 @@ jobs:
           arduino-cli config add board_manager.additional_urls https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
           arduino-cli core update-index
           arduino-cli core install esp32:esp32
-          arduino-cli lib install "VL53L1X" "Adafruit MPU6050"
+          arduino-cli lib install "VL53L1X" "VL53L0X" "Adafruit MPU6050"
       - name: Compile the bring-up blink test
         run: arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32_arduino_ide/SENSEWALK_blink_test
       - name: Compile the I2C wiring scanner
         run: arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32_arduino_ide/SENSEWALK_i2c_scan
       - name: Compile the single-ToF bench test
         run: arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32_arduino_ide/SENSEWALK_tof_test
+      - name: Compile the VL53L0X bench test
+        run: arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32_arduino_ide/SENSEWALK_vl53l0x_test
       - name: Compile the full firmware sketch
         run: arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32_arduino_ide/SENSEWALK_ESP32
       - name: Export flashable binaries (USB-CDC serial output on)
         run: |
-          for sk in SENSEWALK_blink_test SENSEWALK_ESP32 SENSEWALK_i2c_scan SENSEWALK_tof_test; do
+          for sk in SENSEWALK_blink_test SENSEWALK_ESP32 SENSEWALK_i2c_scan SENSEWALK_tof_test SENSEWALK_vl53l0x_test; do
             arduino-cli compile --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc --export-binaries firmware/esp32_arduino_ide/$sk
           done
           mkdir -p flash && find firmware/esp32_arduino_ide -name "*.ino.merged.bin" -exec cp {} flash/ \;
