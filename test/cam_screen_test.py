@@ -115,8 +115,54 @@ def main() -> int:
         buf += ser.read(4096)
         root.update()
     buf = b""
-    for sec in range(10, 0, -1):
-        show_text(f"Aim the camera board at this screen so each photo fills its view.\nStarting in {sec} s ...")
+
+    def model_view_mean():
+        """Mean brightness (0-255) of the 64x64 view the pothole network is given, read from the board."""
+        nonlocal buf
+        ser.write(b"k")
+        t = time.time()
+        while time.time() - t < 3:
+            buf += ser.read(65536)
+            root.update()
+            m = re.search(rb"<<POTH 64x64>>\n", buf)
+            if m and len(buf) >= m.end() + 4096:
+                data = buf[m.end():m.end() + 4096]
+                buf = buf[m.end() + 4096:]
+                return float(np.frombuffer(data, np.uint8).mean())
+        return None
+
+    # Aim check: the camera must really be watching the screen, or the whole test measures nothing.
+    # Flash the screen white and black; if the model's own 64x64 view follows, the camera sees the screen.
+    aimed, streak, t_aim = False, 0, time.time()
+    while time.time() - t_aim < 90 and not aimed:
+        levels = []
+        for colour in ("white", "black"):
+            label.configure(image="", bg=colour, fg="gray40",
+                            text="Aim the camera board at this screen,\nclose and steady, so it fills the camera's view.\n(checking...)")
+            label.image = None
+            root.update()
+            end = time.time() + 1.2
+            while time.time() < end:
+                ser.read(4096)
+                root.update()
+            buf = b""
+            levels.append(model_view_mean())
+        label.configure(bg="black", fg="white")
+        if None not in levels and levels[0] - levels[1] > 80:
+            streak += 1
+            aimed = streak >= 2
+        else:
+            streak = 0
+        print(f"aim check: white view {levels[0]}, black view {levels[1]} -> {'aimed' if streak else 'NOT aimed at the screen'}")
+    if not aimed:
+        show_text("The camera is not looking at the screen. Test cancelled.")
+        time.sleep(3)
+        root.destroy()
+        ser.close()
+        print("CANCELLED: the board's camera never saw the screen light up. Aim it at the screen and run again.")
+        return 2
+    for sec in range(3, 0, -1):
+        show_text(f"Camera is aimed correctly. Hold it still.\nStarting in {sec} s ...")
         end = time.time() + 1
         while time.time() < end:
             ser.read(4096)
