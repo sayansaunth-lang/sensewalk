@@ -38,6 +38,7 @@ def main() -> int:
     ap.add_argument("--port", default="COM8")
     ap.add_argument("--seconds", type=float, default=20.0)
     ap.add_argument("--out", default="cam_person")
+    ap.add_argument("--delay", type=float, default=0.0, help="seconds to wait after boot before measuring (time to step back)")
     args = ap.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -62,6 +63,9 @@ def main() -> int:
     if b"Ready." not in boot:
         return 1
 
+    if args.delay > 0:
+        print(f"waiting {args.delay:.0f}s: get into position...")
+        time.sleep(args.delay)
     stamp = int(time.time())
     for cmd, name in ((b"g", "gray"), (b"c", "photo")):
         ser.reset_input_buffer()
