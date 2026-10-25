@@ -31,7 +31,7 @@
 //               'k' -> the 64x64 grayscale pothole-model input, 'v' -> play every voice clip once (speaker test).
 //
 // Board settings: ESP32S3 Dev Module, PSRAM = "OPI PSRAM", Flash Size 16MB, Partition Scheme
-// "16M Flash (3MB APP/9.9MB FATFS)" or "default_16MB" (the voice clips need the larger app partition).
+// "16M Flash (3MB APP/9.9MB FATFS)" (the voice clips need the larger app partition).
 // Library: Chirale_TensorFLowLite. Voice clips are in voice_clips.h (make_voice_header.py regenerates it).
 
 #include <Arduino.h>
