@@ -78,8 +78,13 @@ jobs:
         run: arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32_arduino_ide/SENSEWALK_vl53l0x_test
       - name: Compile the ESP32-S3 camera board test
         run: arduino-cli compile --fqbn esp32:esp32:esp32s3:PSRAM=opi firmware/esp32_arduino_ide/SENSEWALK_cam_test
-      - name: Compile the on-camera person detector
-        run: arduino-cli compile --fqbn esp32:esp32:esp32s3:PSRAM=opi firmware/esp32_arduino_ide/SENSEWALK_cam_person
+      - name: Pothole network matches PyTorch (host test) and UART protocol copy has not drifted
+        run: |
+          g++ -O2 -std=c++17 -I firmware/esp32_arduino_ide/SENSEWALK_cam_main firmware/esp32_arduino_ide/tools/test_pothole_net.cpp -o /tmp/test_pothole_net
+          /tmp/test_pothole_net
+          diff firmware/esp32_arduino_ide/SENSEWALK_ESP32/uart_protocol.h firmware/esp32_arduino_ide/SENSEWALK_cam_main/uart_protocol.h
+      - name: Compile the camera board person + pothole firmware
+        run: arduino-cli compile --fqbn esp32:esp32:esp32s3:PSRAM=opi firmware/esp32_arduino_ide/SENSEWALK_cam_main
       - name: Compile the full firmware sketch
         run: arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32_arduino_ide/SENSEWALK_ESP32
       - name: Export flashable binaries (USB-CDC serial output on)
@@ -106,8 +111,8 @@ jobs:
             arduino-cli compile --fqbn esp32:esp32:esp32s3:PSRAM=$psram --export-binaries firmware/esp32_arduino_ide/SENSEWALK_cam_test
             cp firmware/esp32_arduino_ide/SENSEWALK_cam_test/build/*/SENSEWALK_cam_test.ino.merged.bin flash/SENSEWALK_cam_test_$psram.merged.bin
           done
-          arduino-cli compile --fqbn esp32:esp32:esp32s3:PSRAM=opi --export-binaries firmware/esp32_arduino_ide/SENSEWALK_cam_person
-          cp firmware/esp32_arduino_ide/SENSEWALK_cam_person/build/*/SENSEWALK_cam_person.ino.merged.bin flash/SENSEWALK_cam_person_opi.merged.bin
+          arduino-cli compile --fqbn esp32:esp32:esp32s3:PSRAM=opi --export-binaries firmware/esp32_arduino_ide/SENSEWALK_cam_main
+          cp firmware/esp32_arduino_ide/SENSEWALK_cam_main/build/*/SENSEWALK_cam_main.ino.merged.bin flash/SENSEWALK_cam_main_opi.merged.bin
       - name: Upload flashable binaries
         uses: actions/upload-artifact@v4
         with:

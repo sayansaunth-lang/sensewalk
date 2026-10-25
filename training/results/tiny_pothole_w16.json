@@ -1,0 +1,38 @@
+{
+  "width": 16,
+  "parameters": 60530,
+  "best_val_auc": 0.9294923448831589,
+  "chosen_threshold": 0.3,
+  "val": {
+    "thr": 0.3,
+    "tp": 158,
+    "fp": 23,
+    "fn": 12,
+    "tn": 50,
+    "precision": 0.8729281767955801,
+    "recall": 0.9294117647058824,
+    "accuracy": 0.8559670781893004
+  },
+  "test": {
+    "thr": 0.3,
+    "tp": 171,
+    "fp": 23,
+    "fn": 9,
+    "tn": 54,
+    "precision": 0.8814432989690721,
+    "recall": 0.95,
+    "accuracy": 0.8754863813229572
+  },
+  "test_auc": 0.9365800865800865,
+  "test_at_0.5": {
+    "thr": 0.5,
+    "tp": 154,
+    "fp": 10,
+    "fn": 26,
+    "tn": 67,
+    "precision": 0.9390243902439024,
+    "recall": 0.8555555555555555,
+    "accuracy": 0.8599221789883269
+  },
+  "note": "views are random square crops of the held-out images; this is a view classifier, not a detector"
+}
