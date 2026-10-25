@@ -68,6 +68,7 @@ jobs:
           arduino-cli core update-index
           arduino-cli core install esp32:esp32
           arduino-cli lib install "VL53L1X" "VL53L0X" "Adafruit MPU6050" "TensorFlowLite_ESP32"
+          python3 firmware/esp32_arduino_ide/tools/patch_tflite_esp32_lib.py
       - name: Compile the bring-up blink test
         run: arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32_arduino_ide/SENSEWALK_blink_test
       - name: Compile the I2C wiring scanner
