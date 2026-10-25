@@ -80,3 +80,19 @@ python3 vision/pi/src/main.py --camera picamera2 --serial-port /dev/serial0 \
 ```
 
 A detected fall starts a 10-second countdown ("Fall detected. Hold the handle to cancel the alert"); gripping the handle cancels it, otherwise the SMS with a map link is sent. Tune the window with `--fall-confirm-s`.
+
+
+## ESP32-S3 camera board (on-board vision, no Pi or laptop)
+
+The camera board (firmware `SENSEWALK_cam_main`) runs person and pothole detection by itself and tells the safety ESP32 to vibrate. It talks to the safety board over the same UART protocol the Pi uses, so the safety firmware needs no changes.
+
+| Camera board | Safety ESP32-S3 | Notes |
+|---|---|---|
+| `kLinkTxPin` (default GPIO1) | GPIO16 (UART2 RX) | 3.3 V logic both sides |
+| `kLinkRxPin` (default GPIO2) | GPIO17 (UART2 TX) | |
+| GND | GND | common ground is required |
+| `kBuzzerPin` (default GPIO14) | piezo buzzer + lead (other lead to GND) | passive piezo, or an active buzzer through ~100 ohm |
+
+**Confirm the three camera-board pins against your board's silkscreen before wiring.** They must not be used by the camera (4-13, 15-18), the flash/PSRAM or the USB-serial chip. The defaults are a guess; change `kLinkTxPin`, `kLinkRxPin` and `kBuzzerPin` at the top of `SENSEWALK_cam_main.ino` if your board differs. The camera board is powered by its own USB-C supply (power bank); do not power it from the safety board's 3.3 V pin.
+
+Behaviour: person confirmed -> `haptic,150|150` and 2 short beeps; pothole confirmed -> `haptic,255|255` and 3 long beeps; clear -> `haptic,0|0`. The haptic frame is re-sent every 200 ms. Both are warnings only; braking stays with the safety board's distance sensors.

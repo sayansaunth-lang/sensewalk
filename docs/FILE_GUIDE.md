@@ -82,6 +82,17 @@ Every file tracked in this repository and what it does, generated from the repos
 | `training/tests/test_prepare_dataset.py` | Tests label cleaning, duplicate removal and the no-leakage guarantee. |  |
 | `training/train_hazard_model.py` | Fine-tunes YOLOv8n, evaluates on validation and test, exports ONNX plus the class list into vision/pi/models. `--evaluate-only` finishes an interrupted run. | `extract_metrics()`<br>`main()` |
 
+## Camera board
+
+| File | What it does | Main functions |
+|---|---|---|
+| `firmware/esp32_arduino_ide/SENSEWALK_cam_main/` | ESP32-S3 camera board firmware: person model (TFLite Micro) and tiny pothole CNN run on the two CPU cores, 2-of-3 confirmation, haptic frames to the safety board, buzzer, USB status. | `SENSEWALK_cam_main.ino`<br>`pothole_net.h`<br>`pothole_weights.h` (generated)<br>`pothole_golden.h` (generated)<br>`uart_protocol.h` (copy) |
+| `firmware/esp32_arduino_ide/tools/test_pothole_net.cpp` | Host test (run by CI): the C++ pothole network matches PyTorch's outputs on held-out views. |  |
+| `firmware/esp32_arduino_ide/SENSEWALK_cam_test/` | Camera board bring-up: tries common pin maps and photo formats, sends a JPEG over USB. |  |
+| `training/tiny_pothole/` | Trains and exports the tiny pothole CNN for the camera board; README has measured accuracy and limits. | `train_tiny_pothole.py`<br>`export_c.py` |
+| `test/cam_grab.py`, `test/cam_view.py`, `test/cam_person_check.py`, `test/cam_screen_test.py` | Laptop tools for the camera board: grab photos, live view with verdicts, per-frame summary, and an end-to-end pothole test using the laptop screen. |  |
+
+
 ## `speech/` - alerts
 
 | File | What it does | Key functions |
