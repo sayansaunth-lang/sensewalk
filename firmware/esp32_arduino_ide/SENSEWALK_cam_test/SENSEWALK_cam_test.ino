@@ -1,8 +1,9 @@
 // ESP32-S3 camera board bring-up test (no Wi-Fi needed).
 //
-// Different S3 camera boards wire the camera to different pins, so this tries the common
-// pin layouts one after another and reports which one initialises. When the camera is up it
-// waits for the character 'c' on the serial port and answers with one JPEG photo:
+// Different S3 camera boards wire the camera to different pins, and some cheap sensors have no
+// JPEG engine, so this tries the common pin layouts and both picture formats until one works,
+// and reports which. When the camera is up it waits for the character 'c' on the serial port
+// and answers with one JPEG photo (compressed on the chip if the sensor can't do it):
 //
 //     <<JPEG 12345>>\n  <12345 raw JPEG bytes>  \n<<END>>\n
 //
@@ -15,6 +16,7 @@
 #include <Arduino.h>
 
 #include "esp_camera.h"
+#include "img_converters.h"
 
 struct PinMap {
     const char* name;
@@ -29,7 +31,19 @@ static const PinMap MAPS[] = {
     {"XIAO ESP32S3 Sense", 10, 40, 39, 48, 11, 12, 14, 16, 18, 17, 15, 38, 47, 13},
 };
 
-static bool tryMap(const PinMap& m) {
+static const char* sensorNameFor(int pid) {
+    switch (pid) {
+        case 0x26: return "OV2640";
+        case 0x36: return "OV3660";
+        case 0x56: return "OV5640";
+        case 0x76: return "OV7670";
+        case 0x77: return "OV7725";
+        case 0x9B: return "GC0308";
+        default: return "unknown";
+    }
+}
+
+static bool tryMap(const PinMap& m, pixformat_t format) {
     camera_config_t c = {};
     c.ledc_channel = LEDC_CHANNEL_0;
     c.ledc_timer = LEDC_TIMER_0;
@@ -50,7 +64,7 @@ static bool tryMap(const PinMap& m) {
     c.pin_pwdn = -1;
     c.pin_reset = -1;
     c.xclk_freq_hz = 20000000;
-    c.pixel_format = PIXFORMAT_JPEG;
+    c.pixel_format = format;       // JPEG if the sensor has a JPEG engine, else raw RGB565
     c.frame_size = FRAMESIZE_QVGA;  // 320x240: small, fast, and what the vision code resizes to anyway
     c.jpeg_quality = 12;
     c.fb_count = 2;
@@ -73,19 +87,23 @@ void setup() {
     delay(1500);
     Serial.println("\n[SENSEWALK cam test]");
     Serial.printf("PSRAM found: %s (%u bytes)\n", psramFound() ? "yes" : "NO", (unsigned)ESP.getPsramSize());
+    const pixformat_t formats[] = {PIXFORMAT_JPEG, PIXFORMAT_RGB565};
     for (const PinMap& m : MAPS) {
-        Serial.printf("trying pin map: %s\n", m.name);
-        if (tryMap(m)) {
-            sensor_t* s = esp_camera_sensor_get();
-            const char* sensorName = s->id.PID == 0x26 ? "OV2640" : s->id.PID == 0x36 ? "OV3660" : s->id.PID == 0x56 ? "OV5640" : "unknown";
-            Serial.printf("CAMERA OK  map=\"%s\"  sensor=%s (PID 0x%02X)\n", m.name, sensorName, s->id.PID);
-            cameraUp = true;
-            for (int i = 0; i < 5; i++) {  // let auto-exposure settle
-                camera_fb_t* fb = esp_camera_fb_get();
-                if (fb) esp_camera_fb_return(fb);
+        for (pixformat_t fmt : formats) {
+            Serial.printf("trying pin map: %s, %s\n", m.name, fmt == PIXFORMAT_JPEG ? "JPEG" : "RGB565");
+            if (tryMap(m, fmt)) {
+                sensor_t* s = esp_camera_sensor_get();
+                Serial.printf("CAMERA OK  map=\"%s\"  format=%s  sensor=%s (PID 0x%02X)\n", m.name,
+                              fmt == PIXFORMAT_JPEG ? "JPEG" : "RGB565", sensorNameFor(s->id.PID), s->id.PID);
+                cameraUp = true;
+                for (int i = 0; i < 5; i++) {  // let auto-exposure settle
+                    camera_fb_t* fb = esp_camera_fb_get();
+                    if (fb) esp_camera_fb_return(fb);
+                }
+                break;
             }
-            break;
         }
+        if (cameraUp) break;
     }
     if (!cameraUp) Serial.println("CAMERA FAILED on every known pin map: send me the board's listing / pinout.");
     else Serial.println("Ready. Send 'c' to get one JPEG photo.");
@@ -104,9 +122,21 @@ void loop() {
                 Serial.println("<<NOFRAME>>");
                 return;
             }
-            Serial.printf("\n<<JPEG %u>>\n", (unsigned)fb->len);
-            Serial.write(fb->buf, fb->len);
+            uint8_t* jpg = fb->buf;
+            size_t jpgLen = fb->len;
+            uint8_t* converted = nullptr;
+            if (fb->format != PIXFORMAT_JPEG) {  // sensor has no JPEG engine: compress on the chip
+                if (!frame2jpg(fb, 80, &converted, &jpgLen)) {
+                    esp_camera_fb_return(fb);
+                    Serial.println("<<NOFRAME>>");
+                    return;
+                }
+                jpg = converted;
+            }
+            Serial.printf("\n<<JPEG %u>>\n", (unsigned)jpgLen);
+            Serial.write(jpg, jpgLen);
             Serial.print("\n<<END>>\n");
+            if (converted) free(converted);
             esp_camera_fb_return(fb);
         } else if (ch == 'c') {
             Serial.println("<<NOCAMERA>>");

@@ -26,7 +26,15 @@ def main() -> int:
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    ser = serial.Serial(args.port, args.baud, timeout=0.3)
+    ser = serial.Serial()
+    ser.port, ser.baudrate, ser.timeout = args.port, args.baud, 0.3
+    ser.dtr = False
+    ser.rts = False
+    ser.open()
+    # Pulse the reset line (RTS -> EN on these boards) so we always see the boot messages.
+    ser.rts = True
+    time.sleep(0.15)
+    ser.rts = False
 
     boot = b""
     t0 = time.time()
@@ -36,7 +44,7 @@ def main() -> int:
     print("--- board says ---")
     for line in text.splitlines():
         if line.strip() and not line.startswith(("ESP-ROM", "Build", "SPIWP", "mode:", "load:", "entry")):
-            print(line.strip()[:150])
+            print(line.strip()[:150].encode('ascii', 'replace').decode())
     if b"Ready." not in boot:
         print("Camera did not come up.")
         return 1
