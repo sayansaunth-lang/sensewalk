@@ -1,7 +1,8 @@
 // SENSEWALK camera board: on-device "is a person in view?" detector (no laptop, no Pi).
 //
 // Runs Google's 96x96 Visual-Wake-Words person model (Apache-2.0, ~300 KB, from the
-// TensorFlow Lite Micro examples) on the ESP32-S3 camera board with TensorFlow Lite Micro.
+// TensorFlow Lite Micro examples) on the ESP32-S3 camera board with TensorFlow Lite Micro
+// (Arduino library "Chirale_TensorFLowLite").
 //
 // What it can and cannot do (be honest about this in the demo):
 //   * It answers ONE question per frame: person in view, yes/no. It does NOT say where the
@@ -19,7 +20,7 @@
 // SENSEWALK_cam_test. Board settings: ESP32S3 Dev Module, PSRAM = OPI PSRAM.
 
 #include <Arduino.h>
-#include <TensorFlowLite_ESP32.h>
+#include <Chirale_TensorFlowLite.h>
 
 #include <esp_heap_caps.h>
 #include <esp_timer.h>
@@ -27,7 +28,6 @@
 #include "esp_camera.h"
 #include "img_converters.h"
 #include "person_detect_model_data.h"
-#include "tensorflow/lite/micro/micro_error_reporter.h"
 #include "tensorflow/lite/micro/micro_interpreter.h"
 #include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
 #include "tensorflow/lite/schema/schema_generated.h"
@@ -48,7 +48,6 @@ constexpr int kConfirmNeeded = 2;
 constexpr int kTensorArenaSize = 130 * 1024;
 uint8_t* tensorArena = nullptr;
 
-tflite::ErrorReporter* errorReporter = nullptr;
 const tflite::Model* model = nullptr;
 tflite::MicroInterpreter* interpreter = nullptr;
 TfLiteTensor* input = nullptr;
@@ -123,8 +122,6 @@ void toGray96(const camera_fb_t* fb) {
 }
 
 bool initModel() {
-    static tflite::MicroErrorReporter microErrorReporter;
-    errorReporter = &microErrorReporter;
     model = tflite::GetModel(g_person_detect_model_data);
     if (model->version() != TFLITE_SCHEMA_VERSION) {
         Serial.printf("model schema %d != supported %d\n", (int)model->version(), TFLITE_SCHEMA_VERSION);
@@ -141,7 +138,7 @@ bool initModel() {
     resolver.AddDepthwiseConv2D();
     resolver.AddReshape();
     resolver.AddSoftmax();
-    static tflite::MicroInterpreter staticInterpreter(model, resolver, tensorArena, kTensorArenaSize, errorReporter);
+    static tflite::MicroInterpreter staticInterpreter(model, resolver, tensorArena, kTensorArenaSize);
     interpreter = &staticInterpreter;
     if (interpreter->AllocateTensors() != kTfLiteOk) {
         Serial.println("AllocateTensors() failed (arena too small?)");
