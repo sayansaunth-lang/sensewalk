@@ -9,25 +9,34 @@
 //   * a haptic command to the SAFETY ESP32 over a 3-wire UART (same protocol the Pi uses:
 //     "haptic,<left>|<right>"), so the safety board vibrates the motors; it is re-sent 5x/second
 //     and drops to 0|0 when the scene clears,
-//   * a buzzer pattern on a piezo (2 short beeps = person, 3 long beeps = pothole),
+//   * a recorded voice clip through a MAX98357A I2S amplifier and speaker ("Alert. Pothole detected
+//     ahead..." / "Caution. Person ahead."). The same speaker also says "Warning, obstacle detected
+//     ahead. Slow down." when the safety board reports a brake, and "Road ahead is clear." when it
+//     releases. A more urgent clip interrupts a less urgent one that is still playing.
+//   * optionally a piezo beep as well (set kBuzzerPin; off by default),
 //   * a status line on USB serial (921600 baud).
 //
 // Wiring to the safety ESP32 (3 wires, 3.3 V logic both sides):
 //     camera board kLinkTxPin  ->  safety board GPIO16 (UART2 RX)
 //     camera board kLinkRxPin  <-  safety board GPIO17 (UART2 TX)
 //     GND to GND
-//   Piezo buzzer: kBuzzerPin to the buzzer's + lead, buzzer - to GND (a passive piezo, or an active
-//   buzzer through a 100 ohm resistor).
-//   CONFIRM THESE PINS AGAINST YOUR BOARD'S SILKSCREEN: they must be free (not used by the camera,
-//   flash/PSRAM or the USB serial chip). Change the three constants below if not.
+// Wiring to the MAX98357A amplifier board (it is powered from 5 V, NOT from a GPIO):
+//     kI2sBclkPin -> BCLK     kI2sLrcPin -> LRC     kI2sDinPin -> DIN
+//     5V -> VIN     GND -> GND     speaker (4-8 ohm) across the + and - screw terminals
+//     leave GAIN and SD unconnected for 9 dB gain and (L+R)/2 mixing
+//   CONFIRM ALL THESE PINS AGAINST YOUR BOARD'S SILKSCREEN: they must be free (not used by the camera,
+//   flash/PSRAM, the USB serial chip, the SD-card socket or the RGB LED). Change the constants below if not.
 //
 // USB commands: 'c' -> one JPEG photo, 'g' -> the 96x96 grayscale person-model input,
-//               'k' -> the 64x64 grayscale pothole-model input.
+//               'k' -> the 64x64 grayscale pothole-model input, 'v' -> play every voice clip once (speaker test).
 //
-// Board settings: ESP32S3 Dev Module, PSRAM = "OPI PSRAM". Library: Chirale_TensorFLowLite.
+// Board settings: ESP32S3 Dev Module, PSRAM = "OPI PSRAM", Flash Size 16MB, Partition Scheme
+// "16M Flash (3MB APP/9.9MB FATFS)" or "default_16MB" (the voice clips need the larger app partition).
+// Library: Chirale_TensorFLowLite. Voice clips are in voice_clips.h (make_voice_header.py regenerates it).
 
 #include <Arduino.h>
 #include <Chirale_TensorFlowLite.h>
+#include <ESP_I2S.h>
 #include <esp_heap_caps.h>
 #include <esp_timer.h>
 
@@ -41,14 +50,19 @@
 #include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
 #include "tensorflow/lite/schema/schema_generated.h"
 #include "uart_protocol.h"
+#include "voice.h"
 
 namespace {
 
 // ---- pins (see the header comment: confirm against your board) ----
 constexpr int kLinkTxPin = 1;     // -> safety board GPIO16
 constexpr int kLinkRxPin = 2;     // <- safety board GPIO17
-constexpr int kBuzzerPin = 14;    // piezo buzzer
+constexpr int kI2sBclkPin = 47;   // MAX98357A BCLK
+constexpr int kI2sLrcPin = 21;    // MAX98357A LRC (word select)
+constexpr int kI2sDinPin = 14;    // MAX98357A DIN
+constexpr int kBuzzerPin = -1;    // optional piezo beep; -1 = none
 constexpr uint32_t kLinkBaud = 115200;
+constexpr int kVolumePercent = 70;  // 0-100, software volume before the amplifier's own gain
 
 // ---- detection settings ----
 constexpr int kPersonModelSize = 96;
@@ -56,7 +70,7 @@ constexpr int kPotholeModelSize = sensewalk::pothole::kInputSize;  // 64
 constexpr int kPersonMargin = 0;  // person score must beat not-person by this (int8 units). TODO(calibrate)
 constexpr int kConfirmWindow = 3;
 constexpr int kConfirmNeeded = 2;
-constexpr uint32_t kBeepCooldownMs = 4000;
+constexpr uint32_t kAlertRepeatMs = 8000;  // while a person/pothole stays in view, repeat the voice this often
 
 // haptic strength (0-255) sent to the safety board
 constexpr int kHapticPerson = 150;
@@ -271,6 +285,103 @@ void beepTask(void*) {
     }
 }
 
+// ---- voice: recorded clips through the MAX98357A I2S amplifier ----
+I2SClass i2s;
+QueueHandle_t voiceQueue = nullptr;    // one slot: the latest request wins
+volatile int gPlayingPriority = -1;    // -1 = idle, otherwise the priority of the clip being played
+volatile bool gAbortPlayback = false;  // set to cut the current clip short for a more urgent one
+bool gBraked = false;                  // the safety board's brake state, so "road clear" follows a brake
+volatile uint32_t gSafetyFrames = 0;   // valid frames received from the safety board
+
+// Ask for a clip. Dropped if something at least as urgent is already playing; interrupts a less urgent one.
+void requestVoice(int clip) {
+    const int priority = sensewalk::voice::priorityOf(clip);
+    const int playing = gPlayingPriority;
+    if (playing >= 0) {
+        if (priority <= playing) return;
+        gAbortPlayback = true;
+    }
+    xQueueOverwrite(voiceQueue, &clip);
+}
+
+void playClip(int clip) {
+    using namespace sensewalk::voice;
+    gAbortPlayback = false;
+    gPlayingPriority = priorityOf(clip);
+    Serial.printf("[voice] playing %s (%.1f s)\n", kClipName[clip], static_cast<float>(kClipLen[clip]) / kSampleRate);
+    if (!i2s.begin(I2S_MODE_STD, kSampleRate, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO)) {
+        Serial.println("[voice] I2S begin failed: check the amplifier pins");
+        gPlayingPriority = -1;
+        return;
+    }
+    static int16_t frames[512];  // 256 stereo frames per write
+    const uint8_t* data = kClipPtr[clip];
+    const int length = kClipLen[clip];
+    for (int i = 0; i < length && !gAbortPlayback; i += 256) {
+        const int n = min(256, length - i);
+        for (int k = 0; k < n; k++) {
+            const int16_t s = static_cast<int16_t>(static_cast<int>(ulawToLinear(data[i + k])) * kVolumePercent / 100);
+            frames[2 * k] = s;      // left
+            frames[2 * k + 1] = s;  // right (the amplifier mixes L+R)
+        }
+        i2s.write(reinterpret_cast<uint8_t*>(frames), n * 4);
+    }
+    memset(frames, 0, sizeof(frames));  // a moment of silence, then stop the clock so the amplifier idles quietly
+    i2s.write(reinterpret_cast<uint8_t*>(frames), 1024);
+    i2s.end();
+    gPlayingPriority = -1;
+}
+
+void voiceTask(void*) {
+    int clip;
+    for (;;) {
+        if (xQueueReceive(voiceQueue, &clip, portMAX_DELAY) == pdTRUE) playClip(clip);
+    }
+}
+
+// Messages from the safety board: "brake_state,1" -> obstacle clip, "brake_state,0" -> road-clear clip.
+void safetyRxTask(void*) {
+    char line[sensewalk::comms::MAX_LINE_LEN];
+    size_t n = 0;
+    for (;;) {
+        while (Serial1.available() > 0) {
+            const char c = static_cast<char>(Serial1.read());
+            if (c == '\n') {
+                line[n] = '\0';
+                n = 0;
+                const sensewalk::comms::DecodedMessage m = sensewalk::comms::decodeLine(line);
+                if (!m.valid) continue;
+                gSafetyFrames++;
+                if (strcmp(m.tag, "brake_state") == 0) {
+                    Serial.printf("[safety] brake_state %s\n", m.value);
+                    if (m.value[0] == '1') {
+                        gBraked = true;
+                        requestVoice(sensewalk::voice::kClipObstacle);
+                    } else if (gBraked) {
+                        gBraked = false;
+                        requestVoice(sensewalk::voice::kClipRoadClear);
+                    }
+                }
+            } else if (n < sizeof(line) - 1) {
+                line[n++] = c;
+            } else {
+                n = 0;  // oversized line: drop it and resynchronise
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(5));
+    }
+}
+
+// 'v' on USB: play every clip once, so you can check the speaker and the wiring.
+void speakerTest() {
+    for (int clip = 0; clip < sensewalk::voice::kClipCount; clip++) {
+        requestVoice(clip);
+        for (int i = 0; i < 20 && gPlayingPriority < 0; i++) delay(25);  // wait for it to start
+        while (gPlayingPriority >= 0) delay(50);                         // and to finish
+        delay(400);
+    }
+}
+
 }  // namespace
 
 void setup() {
@@ -279,9 +390,12 @@ void setup() {
     Serial.println("\n[SENSEWALK cam main: person + pothole]");
     Serial.printf("PSRAM: %s\n", psramFound() ? "yes" : "NO (camera + model need it)");
 
+    Serial1.setRxBufferSize(1024);  // the safety board streams telemetry; keep room while a frame is being processed
     Serial1.begin(kLinkBaud, SERIAL_8N1, kLinkRxPin, kLinkTxPin);
-    pinMode(kBuzzerPin, OUTPUT);
+    if (kBuzzerPin >= 0) pinMode(kBuzzerPin, OUTPUT);
     beepQueue = xQueueCreate(4, sizeof(uint8_t));
+    voiceQueue = xQueueCreate(1, sizeof(int));
+    i2s.setPins(kI2sBclkPin, kI2sLrcPin, kI2sDinPin);
 
     cameraUp = initCamera();
     if (cameraUp) {
@@ -302,7 +416,9 @@ void setup() {
     potholeDone = xSemaphoreCreateBinary();
     xTaskCreatePinnedToCore(potholeTask, "pothole", 6144, nullptr, 3, nullptr, 0);
     xTaskCreate(linkTask, "link", 4096, nullptr, 2, nullptr);
-    xTaskCreate(beepTask, "beep", 3072, nullptr, 2, nullptr);
+    xTaskCreate(safetyRxTask, "safety_rx", 4096, nullptr, 2, nullptr);
+    xTaskCreate(voiceTask, "voice", 6144, nullptr, 4, nullptr);  // above the pothole task so audio never underruns
+    if (kBuzzerPin >= 0) xTaskCreate(beepTask, "beep", 3072, nullptr, 2, nullptr);
 
     if (cameraUp && personUp && potholeOk) Serial.println("Ready.");
     else Serial.println("NOT READY: fix the line above.");
@@ -322,6 +438,7 @@ void loop() {
     char cmd = 0;
     if (Serial.available() > 0) cmd = Serial.read();
     if (cmd == 'c') sendJpeg(fb);
+    if (cmd == 'v') speakerTest();
 
     toGray(fb, kPersonModelSize, gray96);
     toGray(fb, kPotholeModelSize, gray64);
@@ -358,9 +475,10 @@ void loop() {
     const uint8_t alert = potholeConfirmed ? 2 : (personConfirmed ? 1 : 0);
     static uint8_t lastAlert = 0;
     static uint32_t lastBeepMs = 0;
-    if (alert != 0 && (alert > lastAlert || millis() - lastBeepMs > kBeepCooldownMs)) {
+    if (alert != 0 && (alert > lastAlert || millis() - lastBeepMs > kAlertRepeatMs)) {
         lastBeepMs = millis();
-        xQueueSend(beepQueue, &alert, 0);
+        requestVoice(alert == 2 ? sensewalk::voice::kClipPothole : sensewalk::voice::kClipPerson);
+        if (kBuzzerPin >= 0) xQueueSend(beepQueue, &alert, 0);
     }
     lastAlert = alert;
     gAlert = alert;
@@ -370,4 +488,9 @@ void loop() {
                   (unsigned long)millis(), personMs, personScore, notPersonScore, personNow ? "PERSON" : "none",
                   personConfirmed ? "  [CONFIRMED]" : "", pProb, potholeMs, potholeNow ? "POTHOLE" : "clear",
                   potholeConfirmed ? " [CONFIRMED]" : "");
+    static uint32_t lastSafetyReport = 0;
+    if (millis() - lastSafetyReport > 5000) {
+        lastSafetyReport = millis();
+        Serial.printf("[safety link] %lu valid frames received so far\n", (unsigned long)gSafetyFrames);
+    }
 }

@@ -28,6 +28,7 @@ CLIP_FOR_PHRASE: dict[str, str] = {
     "brake_released": "road_clear.wav",             # "Road ahead is clear."
     "vehicle_ahead": "vehicle_ahead.wav",           # "Caution. Vehicle detected ahead. Maintain safe distance."
     "traffic_ahead": "traffic_ahead.wav",           # "Traffic ahead. Drive carefully."
+    "person_close": "person_ahead.wav",             # "Caution. Person ahead." (stand-in made with the Windows voice; replace with your own recording)
 }
 
 

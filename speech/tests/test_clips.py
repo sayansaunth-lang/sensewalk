@@ -67,9 +67,9 @@ def test_phrase_without_a_clip_still_uses_tts(monkeypatch):
     engine = FakeEngine()
     speaker = make_speaker(clips.load_clips(), engine)
 
-    speaker.speak("person_close")
+    speaker.speak("alert_sent")
 
-    assert engine.said == ["Person close ahead"]
+    assert engine.said == ["Emergency message sent"]
 
 
 def test_clip_repeat_is_suppressed(monkeypatch):
