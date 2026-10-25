@@ -15,7 +15,7 @@
 #include "pothole_weights.h"
 
 #ifdef SENSEWALK_POTHOLE_PSRAM
-#include <esp_heap_caps.h>  // on the ESP32-S3 camera board the workspace lives in PSRAM, leaving fast RAM for the person model
+#include <esp_heap_caps.h>  // on the ESP32-S3 camera board the workspace uses internal RAM when free, else PSRAM
 #else
 #include <cstdlib>
 #endif
@@ -64,7 +64,10 @@ struct Logits {
 namespace detail {
 inline float* allocFloats(int n) {
 #ifdef SENSEWALK_POTHOLE_PSRAM
-    return static_cast<float*>(heap_caps_malloc(n * sizeof(float), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    // Fast internal RAM if there is room, otherwise PSRAM (about 2x slower for this network).
+    void* p = heap_caps_malloc(n * sizeof(float), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    if (p == nullptr) p = heap_caps_malloc(n * sizeof(float), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    return static_cast<float*>(p);
 #else
     return static_cast<float*>(std::malloc(n * sizeof(float)));
 #endif

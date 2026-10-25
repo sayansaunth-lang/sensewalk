@@ -77,6 +77,12 @@ bool personUp = false;
 volatile uint8_t gAlert = 0;
 QueueHandle_t beepQueue = nullptr;
 
+// The pothole network runs on the second CPU core at the same time as the person model on the first.
+SemaphoreHandle_t potholeStart = nullptr;
+SemaphoreHandle_t potholeDone = nullptr;
+volatile float gPotholeProb = 0.0f;
+volatile int gPotholeMs = 0;
+
 struct Confirm {
     bool h[kConfirmWindow] = {false, false, false};
     int pos = 0;
@@ -236,6 +242,16 @@ void linkTask(void*) {
     }
 }
 
+void potholeTask(void*) {
+    for (;;) {
+        xSemaphoreTake(potholeStart, portMAX_DELAY);
+        const int64_t t = esp_timer_get_time();
+        gPotholeProb = sensewalk::pothole::probability(gray64);
+        gPotholeMs = static_cast<int>((esp_timer_get_time() - t) / 1000);
+        xSemaphoreGive(potholeDone);
+    }
+}
+
 void beep(int freqHz, int onMs, int offMs, int count) {
     for (int i = 0; i < count; i++) {
         tone(kBuzzerPin, freqHz);
@@ -282,6 +298,9 @@ void setup() {
     }
     const bool potholeOk = potholeSelfTest();
 
+    potholeStart = xSemaphoreCreateBinary();
+    potholeDone = xSemaphoreCreateBinary();
+    xTaskCreatePinnedToCore(potholeTask, "pothole", 6144, nullptr, 3, nullptr, 0);
     xTaskCreate(linkTask, "link", 4096, nullptr, 2, nullptr);
     xTaskCreate(beepTask, "beep", 3072, nullptr, 2, nullptr);
 
@@ -310,6 +329,8 @@ void loop() {
     if (cmd == 'g') sendGray("GRAY", gray96, kPersonModelSize);
     if (cmd == 'k') sendGray("POTH", gray64, kPotholeModelSize);
 
+    xSemaphoreGive(potholeStart);  // start the pothole network on the other core now (it reads gray64)
+
     // --- person ---
     for (int i = 0; i < kPersonModelSize * kPersonModelSize; i++) {
         personInput->data.int8[i] = static_cast<int8_t>(static_cast<int>(gray96[i]) - 128);
@@ -326,10 +347,10 @@ void loop() {
     const bool personNow = (personScore - notPersonScore) > kPersonMargin;
     const bool personConfirmed = personConfirm.observe(personNow);
 
-    // --- pothole ---
-    const int64_t t1 = esp_timer_get_time();
-    const float pProb = sensewalk::pothole::probability(gray64);
-    const int potholeMs = static_cast<int>((esp_timer_get_time() - t1) / 1000);
+    // --- pothole (finished on the other core while the person model ran) ---
+    xSemaphoreTake(potholeDone, portMAX_DELAY);
+    const float pProb = gPotholeProb;
+    const int potholeMs = gPotholeMs;
     const bool potholeNow = pProb >= sensewalk::pothole::kThreshold;
     const bool potholeConfirmed = potholeConfirm.observe(potholeNow);
 
