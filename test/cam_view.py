@@ -19,6 +19,7 @@ import serial
 from PIL import Image, ImageTk
 
 JPEG_RE = re.compile(rb"<<JPEG (\d+)>>\n")
+POT_RE = re.compile(r"pothole p=([0-9.]+) \(\d+ms\) -> (POTHOLE|clear)( \[CONFIRMED\])?")
 LINE_RE = re.compile(r"infer=(\d+)ms person=(-?\d+) notperson=(-?\d+) -> (PERSON|none)( +\[CONFIRMED\])?")
 
 
@@ -52,6 +53,7 @@ def main() -> int:
     root.bind("q", lambda e: closed.append(1))
     frame = np.zeros((240, 320, 3), np.uint8)
     verdict, confirmed, gap, infer = "waiting...", False, 0, 0
+    pot_p, pot_verdict, pot_conf = 0.0, "clear", False
     last_req = 0.0
     t_end = time.time() + args.seconds
     while time.time() < t_end and not closed:
@@ -76,12 +78,17 @@ def main() -> int:
                 infer, p, np_, verdict = int(lm.group(1)), int(lm.group(2)), int(lm.group(3)), lm.group(4)
                 gap = p - np_
                 confirmed = bool(lm.group(5))
+            pm = POT_RE.search(line.decode(errors="replace"))
+            if pm:
+                pot_p, pot_verdict, pot_conf = float(pm.group(1)), pm.group(2), bool(pm.group(3))
         if b"\n" in buf and not JPEG_RE.search(buf):
             buf = buf.rsplit(b"\n", 1)[-1]
         view = cv2.resize(frame, (640, 480))
         color = (0, 200, 0) if confirmed else ((255, 165, 0) if verdict == "PERSON" else (200, 200, 200))
         label = f"{'PERSON CONFIRMED' if confirmed else verdict}   score gap {gap:+d}   {infer} ms"
-        cv2.rectangle(view, (0, 0), (640, 36), (0, 0, 0), -1)
+        cv2.rectangle(view, (0, 0), (640, 70), (0, 0, 0), -1)
+        pcolor = (0, 0, 255) if pot_conf else ((0, 165, 255) if pot_verdict == "POTHOLE" else (200, 200, 200))
+        cv2.putText(view, f"{'POTHOLE CONFIRMED' if pot_conf else pot_verdict}   p={pot_p:.2f}", (10, 58), cv2.FONT_HERSHEY_SIMPLEX, 0.8, pcolor, 2)
         cv2.putText(view, label, (10, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
         photo = ImageTk.PhotoImage(Image.fromarray(cv2.cvtColor(view, cv2.COLOR_BGR2RGB)))
         label_w.configure(image=photo)
