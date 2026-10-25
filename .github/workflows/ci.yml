@@ -76,6 +76,8 @@ jobs:
         run: arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32_arduino_ide/SENSEWALK_tof_test
       - name: Compile the VL53L0X bench test
         run: arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32_arduino_ide/SENSEWALK_vl53l0x_test
+      - name: Compile the ESP32-S3 camera board test
+        run: arduino-cli compile --fqbn esp32:esp32:esp32s3:PSRAM=opi firmware/esp32_arduino_ide/SENSEWALK_cam_test
       - name: Compile the full firmware sketch
         run: arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32_arduino_ide/SENSEWALK_ESP32
       - name: Export flashable binaries (USB-CDC serial output on)
@@ -97,6 +99,11 @@ jobs:
           grep -q '^#define SENSEWALK_TOF_VL53L0X_FORWARD_ONLY' sim_build/SENSEWALK_ESP32_ONE_L0X/config.h
           arduino-cli compile --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc --export-binaries sim_build/SENSEWALK_ESP32_ONE_L0X
           mkdir -p flash && find firmware/esp32_arduino_ide sim_build -name "*.ino.merged.bin" -exec cp {} flash/ \;
+          # Camera board test: N16R8 boards use octal PSRAM, some clones use quad
+          for psram in opi enabled; do
+            arduino-cli compile --fqbn esp32:esp32:esp32s3:PSRAM=$psram --export-binaries firmware/esp32_arduino_ide/SENSEWALK_cam_test
+            cp firmware/esp32_arduino_ide/SENSEWALK_cam_test/build/*/SENSEWALK_cam_test.ino.merged.bin flash/SENSEWALK_cam_test_$psram.merged.bin
+          done
       - name: Upload flashable binaries
         uses: actions/upload-artifact@v4
         with:
