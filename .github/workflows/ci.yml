@@ -67,7 +67,7 @@ jobs:
           arduino-cli config add board_manager.additional_urls https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
           arduino-cli core update-index
           arduino-cli core install esp32:esp32
-          arduino-cli lib install "VL53L1X" "VL53L0X" "Adafruit MPU6050"
+          arduino-cli lib install "VL53L1X" "VL53L0X" "Adafruit MPU6050" "TensorFlowLite_ESP32"
       - name: Compile the bring-up blink test
         run: arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32_arduino_ide/SENSEWALK_blink_test
       - name: Compile the I2C wiring scanner
@@ -78,6 +78,8 @@ jobs:
         run: arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32_arduino_ide/SENSEWALK_vl53l0x_test
       - name: Compile the ESP32-S3 camera board test
         run: arduino-cli compile --fqbn esp32:esp32:esp32s3:PSRAM=opi firmware/esp32_arduino_ide/SENSEWALK_cam_test
+      - name: Compile the on-camera person detector
+        run: arduino-cli compile --fqbn esp32:esp32:esp32s3:PSRAM=opi firmware/esp32_arduino_ide/SENSEWALK_cam_person
       - name: Compile the full firmware sketch
         run: arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32_arduino_ide/SENSEWALK_ESP32
       - name: Export flashable binaries (USB-CDC serial output on)
@@ -104,6 +106,8 @@ jobs:
             arduino-cli compile --fqbn esp32:esp32:esp32s3:PSRAM=$psram --export-binaries firmware/esp32_arduino_ide/SENSEWALK_cam_test
             cp firmware/esp32_arduino_ide/SENSEWALK_cam_test/build/*/SENSEWALK_cam_test.ino.merged.bin flash/SENSEWALK_cam_test_$psram.merged.bin
           done
+          arduino-cli compile --fqbn esp32:esp32:esp32s3:PSRAM=opi --export-binaries firmware/esp32_arduino_ide/SENSEWALK_cam_person
+          cp firmware/esp32_arduino_ide/SENSEWALK_cam_person/build/*/SENSEWALK_cam_person.ino.merged.bin flash/SENSEWALK_cam_person_opi.merged.bin
       - name: Upload flashable binaries
         uses: actions/upload-artifact@v4
         with:
