@@ -14,6 +14,12 @@
 
 #include "pothole_weights.h"
 
+#ifdef SENSEWALK_POTHOLE_PSRAM
+#include <esp_heap_caps.h>  // on the ESP32-S3 camera board the workspace lives in PSRAM, leaving fast RAM for the person model
+#else
+#include <cstdlib>
+#endif
+
 namespace sensewalk::pothole {
 
 constexpr int kInputSize = 64;
@@ -55,11 +61,22 @@ struct Logits {
     float pothole;
 };
 
+namespace detail {
+inline float* allocFloats(int n) {
+#ifdef SENSEWALK_POTHOLE_PSRAM
+    return static_cast<float*>(heap_caps_malloc(n * sizeof(float), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+#else
+    return static_cast<float*>(std::malloc(n * sizeof(float)));
+#endif
+}
+}  // namespace detail
+
 inline Logits run(const uint8_t* gray64) {
-    // Largest activation is 32x32xC1; static so a 100 KB array never lands on a task stack.
-    static float bufA[(kInputSize / 2) * (kInputSize / 2) * kC1];
-    static float bufB[(kInputSize / 4) * (kInputSize / 4) * kC2];
-    static float input[kInputSize * kInputSize];
+    // Workspace is allocated once, on first use (the largest activation is 32x32xC1, ~64 KB).
+    static float* bufA = detail::allocFloats((kInputSize / 2) * (kInputSize / 2) * kC1);
+    static float* bufB = detail::allocFloats((kInputSize / 4) * (kInputSize / 4) * kC2);
+    static float* input = detail::allocFloats(kInputSize * kInputSize);
+    if (bufA == nullptr || bufB == nullptr || input == nullptr) return {0.0f, 0.0f};  // out of memory: report "no pothole"
     for (int i = 0; i < kInputSize * kInputSize; i++) input[i] = (static_cast<float>(gray64[i]) - 128.0f) / 128.0f;
 
     detail::conv3x3s2(input, 64, 64, 1, kW1, kB1, kC1, bufA);   // -> 32x32xC1

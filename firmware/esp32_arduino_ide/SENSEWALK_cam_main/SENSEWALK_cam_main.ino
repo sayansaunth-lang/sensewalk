@@ -34,6 +34,7 @@
 #include "esp_camera.h"
 #include "img_converters.h"
 #include "person_detect_model_data.h"
+#define SENSEWALK_POTHOLE_PSRAM  // pothole workspace in PSRAM (see pothole_net.h)
 #include "pothole_golden.h"
 #include "pothole_net.h"
 #include "tensorflow/lite/micro/micro_interpreter.h"
@@ -61,7 +62,7 @@ constexpr uint32_t kBeepCooldownMs = 4000;
 constexpr int kHapticPerson = 150;
 constexpr int kHapticPothole = 255;
 
-constexpr int kTensorArenaSize = 130 * 1024;
+constexpr int kTensorArenaSize = 96 * 1024;  // the person model needs ~82 KB
 uint8_t* tensorArena = nullptr;
 const tflite::Model* personModel = nullptr;
 tflite::MicroInterpreter* personInterpreter = nullptr;
