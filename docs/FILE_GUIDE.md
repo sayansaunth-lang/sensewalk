@@ -87,6 +87,8 @@ Every file tracked in this repository and what it does, generated from the repos
 | File | What it does | Main functions |
 |---|---|---|
 | `firmware/esp32_arduino_ide/SENSEWALK_cam_main/` | ESP32-S3 camera board firmware: person model (TFLite Micro) and tiny pothole CNN run on the two CPU cores, 2-of-3 confirmation, haptic frames to the safety board, buzzer, USB status. | `SENSEWALK_cam_main.ino`<br>`pothole_net.h`<br>`pothole_weights.h` (generated)<br>`pothole_golden.h` (generated)<br>`uart_protocol.h` (copy) |
+| `firmware/esp32_arduino_ide/SENSEWALK_cam_main/voice.h`, `voice_clips.h` | Voice for the camera board: mu-law decode and clip priorities; the clips themselves, generated from `speech/audio/*.wav` (16 kHz, 8-bit mu-law). | `ulawToLinear()`<br>`priorityOf()` |
+| `firmware/esp32_arduino_ide/tools/make_voice_header.py`, `test_voice.cpp` | Regenerates `voice_clips.h` from the WAV files (`--check` detects a stale header); host test of the mu-law decode. |  |
 | `firmware/esp32_arduino_ide/tools/test_pothole_net.cpp` | Host test (run by CI): the C++ pothole network matches PyTorch's outputs on held-out views. |  |
 | `firmware/esp32_arduino_ide/SENSEWALK_cam_test/` | Camera board bring-up: tries common pin maps and photo formats, sends a JPEG over USB. |  |
 | `training/tiny_pothole/` | Trains and exports the tiny pothole CNN for the camera board; README has measured accuracy and limits. | `train_tiny_pothole.py`<br>`export_c.py` |

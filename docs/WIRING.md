@@ -91,8 +91,14 @@ The camera board (firmware `SENSEWALK_cam_main`) runs person and pothole detecti
 | `kLinkTxPin` (default GPIO1) | GPIO16 (UART2 RX) | 3.3 V logic both sides |
 | `kLinkRxPin` (default GPIO2) | GPIO17 (UART2 TX) | |
 | GND | GND | common ground is required |
-| `kBuzzerPin` (default GPIO14) | piezo buzzer + lead (other lead to GND) | passive piezo, or an active buzzer through ~100 ohm |
+| `kI2sBclkPin` (default GPIO47) | MAX98357A **BCLK** | I2S bit clock |
+| `kI2sLrcPin` (default GPIO21) | MAX98357A **LRC** | I2S word select |
+| `kI2sDinPin` (default GPIO14) | MAX98357A **DIN** | I2S data |
+| 5 V (from the power bank / the board's 5V pin) | MAX98357A **VIN** | powered from 5 V, **not** from a GPIO; keep leads short |
+| GND | MAX98357A **GND** | |
+| MAX98357A speaker terminals | 4-8 ohm speaker (about 3 W) | leave GAIN and SD unconnected (9 dB gain, (L+R)/2 mixing) |
+| `kBuzzerPin` (default -1 = off) | optional piezo buzzer + lead (other lead to GND) | passive piezo, or an active buzzer through ~100 ohm |
 
-**Confirm the three camera-board pins against your board's silkscreen before wiring.** They must not be used by the camera (4-13, 15-18), the flash/PSRAM or the USB-serial chip. The defaults are a guess; change `kLinkTxPin`, `kLinkRxPin` and `kBuzzerPin` at the top of `SENSEWALK_cam_main.ino` if your board differs. The camera board is powered by its own USB-C supply (power bank); do not power it from the safety board's 3.3 V pin.
+**Confirm all the camera-board pins against your board's silkscreen before wiring.** They must not be used by the camera (4-13, 15-18), the flash/PSRAM, the USB-serial chip, the SD-card socket or the RGB LED (often GPIO48). The defaults are a guess; change `kLinkTxPin`, `kLinkRxPin`, `kI2sBclkPin`, `kI2sLrcPin`, `kI2sDinPin` and `kBuzzerPin` at the top of `SENSEWALK_cam_main.ino` if your board differs. The camera board is powered by its own USB-C supply (power bank); do not power it from the safety board's 3.3 V pin.
 
-Behaviour: person confirmed -> `haptic,150|150` and 2 short beeps; pothole confirmed -> `haptic,255|255` and 3 long beeps; clear -> `haptic,0|0`. The haptic frame is re-sent every 200 ms. Both are warnings only; braking stays with the safety board's distance sensors.
+Behaviour: person confirmed -> `haptic,150|150` and the voice "Caution. Person ahead."; pothole confirmed -> `haptic,255|255` and "Alert. Pothole detected ahead. Reduce speed."; clear -> `haptic,0|0`. When the safety board reports `brake_state,1` the speaker says "Warning, obstacle detected ahead. Slow down."; on `brake_state,0` it says "Road ahead is clear." A more urgent clip cuts off a less urgent one. Send `v` over USB to play every clip once as a speaker test. The firmware needs the 16 MB flash layout (Flash Size 16MB, Partition Scheme "16M Flash (3MB APP/9.9MB FATFS)") because the voice clips are embedded (about 0.2 MB). The haptic frame is re-sent every 200 ms. Both are warnings only; braking stays with the safety board's distance sensors.
