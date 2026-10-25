@@ -173,3 +173,37 @@ def test_obstacle_outranks_visual_pothole():
 def test_visual_pothole_outranks_person_nearby():
     decision = SensorFusion().update(make_snapshot(vision_ground_hazard="pothole", vision_person_nearby=True))
     assert decision.hazard is HazardKind.GROUND_HAZARD_VISUAL
+
+
+def test_vehicle_nearby_warns_with_vehicle_phrase():
+    fusion = SensorFusion()
+    decision = fusion.update(make_snapshot(vision_vehicle_nearby=True))
+    assert decision.state is State.HAZARD_WARNING
+    assert decision.hazard is HazardKind.VEHICLE_NEARBY
+    assert decision.alert_phrase_key == "vehicle_ahead"
+
+
+def test_traffic_ahead_warns_with_traffic_phrase():
+    fusion = SensorFusion()
+    decision = fusion.update(make_snapshot(vision_traffic=True))
+    assert decision.hazard is HazardKind.TRAFFIC_AHEAD
+    assert decision.alert_phrase_key == "traffic_ahead"
+
+
+def test_vehicle_nearby_outranks_traffic_and_person():
+    fusion = SensorFusion()
+    decision = fusion.update(make_snapshot(vision_vehicle_nearby=True, vision_traffic=True, vision_person_nearby=True))
+    assert decision.alert_phrase_key == "vehicle_ahead"
+
+
+def test_vision_vehicle_never_brakes():
+    fusion = SensorFusion()
+    decision = fusion.update(make_snapshot(vision_vehicle_nearby=True, vision_traffic=True))
+    assert decision.state is not State.BRAKE_ENGAGED
+
+
+def test_ultrasonic_obstacle_still_beats_vehicle_warning():
+    fusion = SensorFusion()
+    decision = fusion.update(make_snapshot(us_c_cm=20, vision_vehicle_nearby=True))
+    assert decision.state is State.BRAKE_ENGAGED
+    assert decision.alert_phrase_key == "obstacle_close"

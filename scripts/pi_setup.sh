@@ -44,7 +44,7 @@ step "System packages (this needs internet and can take a few minutes)"
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends \
   git curl unzip python3-venv python3-pip python3-picamera2 \
-  tesseract-ocr espeak-ng
+  tesseract-ocr espeak-ng alsa-utils
 
 step "Get the code"
 if [ -d "$DEST/.git" ]; then

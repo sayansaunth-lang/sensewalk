@@ -40,6 +40,8 @@ VOCABULARY: dict[str, Phrase] = {
     "alert_sent": Phrase("alert_sent", "Emergency message sent", Severity.CRITICAL),
     "alert_failed": Phrase("alert_failed", "Could not send emergency message", Severity.CRITICAL),
     "brake_released": Phrase("brake_released", "Clear, walking", Severity.INFO),
+    "vehicle_ahead": Phrase("vehicle_ahead", "Caution. Vehicle ahead. Keep a safe distance", Severity.WARNING),
+    "traffic_ahead": Phrase("traffic_ahead", "Traffic ahead. Be careful", Severity.WARNING),
 }
 
 

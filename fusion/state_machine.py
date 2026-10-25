@@ -5,7 +5,8 @@ Runs on the Pi. Combines ToF/ultrasonic/IMU telemetry arriving over UART
 coherent state, following the explicit priority order from
 docs/ARCHITECTURE.md:
 
-    hard ToF drop-off > ultrasonic proximity > vision "person nearby" > OCR sign read
+    hard ToF drop-off > ultrasonic proximity > vision ground hazard > vehicle nearby > traffic ahead
+    > vision "person nearby" > OCR sign read
 
 The ESP32's own hard safety override (firmware/esp32/src/safety/) is an
 independent, lower-level backstop — this state machine is for user-facing
@@ -33,6 +34,8 @@ class HazardKind(Enum):
     GROUND_DROPOFF = auto()  # hard ToF drop-off — highest priority
     OBSTACLE_CLOSE = auto()  # ultrasonic proximity
     GROUND_HAZARD_VISUAL = auto()  # vision saw a pothole/stairs/etc. — a warning, never a brake (no depth from a camera)
+    VEHICLE_NEARBY = auto()  # vision: a car/bus/truck/motorcycle looks close — a warning, never a brake
+    TRAFFIC_AHEAD = auto()  # vision: two or more vehicles in view
     PERSON_NEARBY = auto()  # vision classification
     SIGN_READ = auto()  # OCR result — informational only, never a hazard escalation
 
@@ -42,6 +45,8 @@ HAZARD_PRIORITY = [
     HazardKind.GROUND_DROPOFF,
     HazardKind.OBSTACLE_CLOSE,
     HazardKind.GROUND_HAZARD_VISUAL,
+    HazardKind.VEHICLE_NEARBY,
+    HazardKind.TRAFFIC_AHEAD,
     HazardKind.PERSON_NEARBY,
     HazardKind.SIGN_READ,
 ]
@@ -72,6 +77,8 @@ class SensorSnapshot:
     fall_flag: bool = False
     vision_person_nearby: bool = False
     vision_ground_hazard: Optional[str] = None  # label from the custom hazard model, e.g. "pothole"
+    vision_vehicle_nearby: bool = False
+    vision_traffic: bool = False  # two or more vehicles in view
     ocr_text: Optional[str] = None
     mcu_alive: bool = True
     last_grip_at: float = field(default_factory=time.monotonic)
@@ -105,6 +112,12 @@ class SensorFusion:
 
         if s.vision_ground_hazard:
             return HazardKind.GROUND_HAZARD_VISUAL
+
+        if s.vision_vehicle_nearby:
+            return HazardKind.VEHICLE_NEARBY
+
+        if s.vision_traffic:
+            return HazardKind.TRAFFIC_AHEAD
 
         if s.vision_person_nearby:
             return HazardKind.PERSON_NEARBY
@@ -147,6 +160,14 @@ class SensorFusion:
             return Decision(
                 self.state, hazard, "ground_hazard_seen", f"vision detected {s.vision_ground_hazard} ahead"
             )
+
+        if hazard is HazardKind.VEHICLE_NEARBY:
+            self._transition(State.HAZARD_WARNING, "vision: vehicle nearby")
+            return Decision(self.state, hazard, "vehicle_ahead", "vision detected a nearby vehicle")
+
+        if hazard is HazardKind.TRAFFIC_AHEAD:
+            self._transition(State.HAZARD_WARNING, "vision: traffic ahead")
+            return Decision(self.state, hazard, "traffic_ahead", "vision detected two or more vehicles")
 
         if hazard is HazardKind.PERSON_NEARBY:
             self._transition(State.HAZARD_WARNING, "vision: person nearby")

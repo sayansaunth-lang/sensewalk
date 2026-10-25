@@ -88,6 +88,10 @@ Every file tracked in this repository and what it does, generated from the repos
 |---|---|---|
 | `speech/__init__.py` | Package marker. |  |
 | `speech/buzzer_fallback.py` | Piezo buzzer watchdog on its own thread: if speech has not finished within a timeout it beeps anyway (more beeps = more severe). | `class BuzzerFallback (arm, disarm, buzz, close)` |
+| `speech/clips.py` | Plays the team's pre-recorded voice clips for alert phrases, in the background (never blocks the vision loop; a more urgent clip interrupts a less urgent one). Falls back to text-to-speech if a clip is missing or cannot play. | `CLIP_FOR_PHRASE`<br>`load_clips()`<br>`class ClipPlayer`<br>`play_clip()` |
+| `speech/audio/*.wav` | The five voice clips (pothole, obstacle, road clear, vehicle ahead, traffic ahead) and a README saying what each says and when it plays. |  |
+| `speech/tests/test_clips.py` | Tests clip files are valid, the right clip plays for each phrase, TTS fallback works, and clip priority/interruption. |  |
+| `vision/pi/tests/test_vehicles.py` | Tests nearest-vehicle and vehicle-count logic behind the vehicle/traffic warnings. |  |
 | `speech/phrases.py` | The fixed alert vocabulary with severity levels. Short fixed phrases keep speech fast and predictable. | `class Severity`<br>`class Phrase`<br>`render()`<br>`severity_of()` |
 | `speech/tests/__init__.py` | Package marker. |  |
 | `speech/tests/test_buzzer_fallback.py` | Tests the watchdog fires when speech stalls and stays silent when speech finishes. |  |

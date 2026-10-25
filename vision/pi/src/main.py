@@ -45,7 +45,10 @@ from vision.pi.src.detector import (  # noqa: E402
     YoloOnnxDetector,
     draw_detections,
     find_ground_hazard,
+    count_vehicles,
     nearest_person,
+    nearest_vehicle,
+    TRAFFIC_MIN_VEHICLES,
 )
 from vision.pi.src.ocr import read_sign, should_attempt_ocr  # noqa: E402
 
@@ -137,6 +140,7 @@ def main() -> int:
         else:
             hazard_detector = YoloOnnxDetector(model_path=Path(args.hazard_model))
     person_confirm, ground_confirm = RollingConfirm(2, 3), RollingConfirm(2, 3)
+    vehicle_confirm, traffic_confirm = RollingConfirm(2, 3), RollingConfirm(2, 3)
     fusion = SensorFusion()
     speaker = None if args.no_speech else AlertSpeaker()
     fps_counter = FPSCounter()
@@ -202,6 +206,7 @@ def main() -> int:
     # Vision results persist between inference frames. Re-applying them every frame
     # matters when --process-every-n-frames > 1 or --sim rebuilds the snapshot each tick.
     vision_person, vision_ground, ocr_last = False, None, None
+    vision_vehicle, vision_traffic = False, False
     try:
         for frame in camera.frames():
             if sim_feed is not None:
@@ -223,6 +228,8 @@ def main() -> int:
                 # "nearby" = apparent size, a crude proxy (see detector.NEARBY_MIN_HEIGHT_FRACTION);
                 # real distance comes from the ESP32's ToF/ultrasonic sensors.
                 vision_person = person_confirm.observe(nearest_person(detections, frame_h) is not None)
+                vision_vehicle = vehicle_confirm.observe(nearest_vehicle(detections, frame_h) is not None)
+                vision_traffic = traffic_confirm.observe(count_vehicles(detections) >= TRAFFIC_MIN_VEHICLES)
                 if hazard_detector is not None:
                     hazard_dets = hazard_detector.detect(frame)
                     ground = find_ground_hazard(hazard_dets)
@@ -241,6 +248,8 @@ def main() -> int:
                         args.no_ocr = True  # don't pay the preprocessing cost on every frame
 
             snapshot.vision_person_nearby = vision_person
+            snapshot.vision_vehicle_nearby = vision_vehicle
+            snapshot.vision_traffic = vision_traffic
             snapshot.vision_ground_hazard = vision_ground
             snapshot.ocr_text = ocr_last
 
@@ -263,7 +272,7 @@ def main() -> int:
                 speaker.speak(key, text=snapshot.ocr_text or "")
 
             if link is not None:
-                left = 200 if (snapshot.vision_person_nearby or snapshot.vision_ground_hazard) else 0
+                left = 200 if (snapshot.vision_person_nearby or snapshot.vision_ground_hazard or snapshot.vision_vehicle_nearby) else 0
                 right = left
                 link.send("haptic", f"{left}|{right}")
 

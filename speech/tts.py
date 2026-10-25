@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from . import phrases
+from . import clips, phrases
 
 
 @dataclass
@@ -30,8 +30,13 @@ class AlertSpeaker:
     whole pipeline — the piezo buzzer fallback (buzzer_fallback.py) is the
     real hard fallback for that case."""
 
-    def __init__(self, rate: int = 175) -> None:
+    # phrase key -> pre-recorded clip (speech/clips.py). A class-level empty default keeps
+    # instances built without __init__ (as the unit tests do) on the plain text-to-speech path.
+    _clips: dict = {}
+
+    def __init__(self, rate: int = 175, use_clips: bool = True) -> None:
         self._engine = None
+        self._clips = clips.load_clips() if use_clips else {}
         self._rate = rate
         self._last_spoken_at: dict[str, float] = {}
         self.latency_log: list[LatencyRecord] = []
@@ -45,7 +50,7 @@ class AlertSpeaker:
 
     @property
     def available(self) -> bool:
-        return self._engine is not None
+        return self._engine is not None or bool(self._clips)
 
     def speak(self, phrase_key: str, min_repeat_interval_s: float = 3.0, **kwargs) -> Optional[LatencyRecord]:
         """Speak a phrase by vocabulary key. Repeats of the same key within
@@ -57,8 +62,16 @@ class AlertSpeaker:
             return None
         self._last_spoken_at[phrase_key] = now
 
-        text = phrases.render(phrase_key, **kwargs)
         trigger_time = time.monotonic()
+
+        clip = self._clips.get(phrase_key)
+        if clip is not None and clips.play_clip(clip, int(phrases.severity_of(phrase_key))):
+            record = LatencyRecord(phrase_key=phrase_key, trigger_to_sound_ms=(time.monotonic() - trigger_time) * 1000)
+            self.latency_log.append(record)
+            return record
+        # No clip for this phrase, or it failed to play: fall back to the synthesised voice.
+
+        text = phrases.render(phrase_key, **kwargs)
 
         if self._engine is None:
             print(f"[speech.tts] (disabled) would say: {text!r}")

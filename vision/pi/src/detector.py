@@ -40,8 +40,12 @@ VOC_CLASSES = [
 # "motorbike" (VOC/Caffe backend naming) and "motorcycle" (COCO/TFLite
 # backend naming) since either detector may be active.
 HAZARD_RELEVANT_CLASSES = {
-    "person", "bicycle", "car", "motorbike", "motorcycle", "bus", "dog", "chair",
+    "person", "bicycle", "car", "motorbike", "motorcycle", "bus", "truck", "dog", "chair",
 }
+
+# Motor vehicles for the "vehicle ahead" / "traffic ahead" voice warnings (bicycles are not counted).
+VEHICLE_LABELS = {"car", "bus", "truck", "motorcycle", "motorbike"}
+TRAFFIC_MIN_VEHICLES = 2
 
 DEFAULT_CONFIDENCE_THRESHOLD = 0.5
 DEFAULT_INPUT_SIZE = (300, 300)  # native MobileNet-SSD input
@@ -293,6 +297,19 @@ def nearest_person(detections: list[Detection], frame_height: int) -> Optional[D
     if not people:
         return None
     return max(people, key=lambda d: d.box[3] - d.box[1])
+
+
+def nearest_vehicle(detections: list[Detection], frame_height: int) -> Optional[Detection]:
+    """Largest-looking (closest) motor vehicle, if any is 'nearby' by is_nearby()."""
+    vehicles = [d for d in detections if d.label in VEHICLE_LABELS and is_nearby(d, frame_height)]
+    if not vehicles:
+        return None
+    return max(vehicles, key=lambda d: d.box[3] - d.box[1])
+
+
+def count_vehicles(detections: list[Detection]) -> int:
+    """Motor vehicles in view, near or far. Two or more means 'traffic ahead'."""
+    return sum(1 for d in detections if d.label in VEHICLE_LABELS)
 
 
 def find_ground_hazard(detections: list[Detection], min_confidence: float = HAZARD_DEFAULT_CONFIDENCE) -> Optional[Detection]:
