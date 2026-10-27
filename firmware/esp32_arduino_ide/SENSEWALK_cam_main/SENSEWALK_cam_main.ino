@@ -17,7 +17,7 @@
 //   * a status line on USB serial (921600 baud).
 //
 // Wiring to the safety ESP32 (3 wires, 3.3 V logic both sides):
-//     camera board kLinkTxPin  ->  safety board GPIO16 (UART2 RX)
+//     camera board kLinkTxPin  ->  safety board GPIO18 (UART2 RX)
 //     camera board kLinkRxPin  <-  safety board GPIO17 (UART2 TX)
 //     GND to GND
 // Wiring to the MAX98357A amplifier board (it is powered from 5 V, NOT from a GPIO):
@@ -56,7 +56,7 @@
 namespace {
 
 // ---- pins (see the header comment: confirm against your board) ----
-constexpr int kLinkTxPin = 1;     // -> safety board GPIO16
+constexpr int kLinkTxPin = 1;     // -> safety board GPIO18
 constexpr int kLinkRxPin = 2;     // <- safety board GPIO17
 constexpr int kI2sBclkPin = 47;   // MAX98357A BCLK
 constexpr int kI2sLrcPin = 21;    // MAX98357A LRC (word select)
@@ -389,10 +389,10 @@ void safetyRxTask(void*) {
 //            that reports frames is the one wired to the safety board's GPIO17.
 //   TX scan: sends a marked haptic command out of each free pin in turn (left level 100 + index); the
 //            safety board logs "haptic command received: left=1xx", so the level that arrives names the pin
-//            wired to the safety board's GPIO16. Run test/system_check.py --wirefind to read both logs.
+//            wired to the safety board's GPIO18. Run test/system_check.py --wirefind to read both logs.
 // The pins are only listened to or driven with a 3.3 V serial signal for about a second each.
 void wireFinder() {
-    static const int kPins[] = {1, 2, 14, 21, 38, 39, 40, 41, 42, 47, 48};
+    static const int kPins[] = {1, 2, 14, 21, 38, 39, 40, 41, 42, 43, 44, 47, 48};  // 43/44 are the pins labelled TX and RX on most S3 boards (free in the USB-CDC build)
     constexpr int kCount = sizeof(kPins) / sizeof(kPins[0]);
     gLinkBusy = true;
     vTaskDelay(pdMS_TO_TICKS(150));

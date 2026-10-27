@@ -3,7 +3,7 @@
     python test/system_check.py --safety COM7 --camera COM8 --seconds 75
 
 Setup: safety board runs SENSEWALK_ESP32_SIM (simulated sensors: it brakes and releases on a 40 s script),
-camera board runs SENSEWALK_cam_main, wired together (3 wires: camera TX -> safety GPIO16, camera RX <-
+camera board runs SENSEWALK_cam_main, wired together (3 wires: camera TX -> safety GPIO18, camera RX <-
 safety GPIO17, GND). Both boards are connected to this computer by USB, which is used only for logging.
 
 What it checks, each from the receiving side's own log:

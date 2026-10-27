@@ -3,12 +3,12 @@
     python test/wire_finder.py --safety COM7 --camera COM9
 
 The safety board runs SENSEWALK_ESP32_SIM (it streams data out of GPIO17 all the time and logs the vibration
-commands it receives on GPIO16). The camera board runs SENSEWALK_cam_main (>= the version with the 'w'
+commands it receives on GPIO18). The camera board runs SENSEWALK_cam_main (>= the version with the 'w'
 command). The script tells the camera board to scan its free pins and reads both boards' logs:
 
   * RX: the camera pin that reports valid frames is wired to the safety board's GPIO17 (TX)
   * TX: the safety board logs the marked vibration level it received; that level names the camera pin
-        wired to the safety board's GPIO16 (RX)
+        wired to the safety board's GPIO18 (RX)
 
 It then says what to change. About 40 seconds. Ground must be connected for any of this to work.
 """
@@ -23,7 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from system_check import Reader  # noqa: E402
 
-PINS = [1, 2, 14, 21, 38, 39, 40, 41, 42, 47, 48]
+PINS = [1, 2, 14, 21, 38, 39, 40, 41, 42, 43, 44, 47, 48]
 
 
 def main() -> int:
@@ -75,10 +75,10 @@ def main() -> int:
         print("NO camera pin heard the safety board. Check: the wire from safety GPIO17 is really connected to a camera-board pin, "
               "GND is connected between the boards, and the safety board is running SENSEWALK_ESP32_SIM.")
     if tx_pins:
-        print(f"safety RX (GPIO16) is wired to camera GPIO{tx_pins[0]}" + ("" if tx_pins[0] == 1 else "   <- not GPIO1: set kLinkTxPin to this in SENSEWALK_cam_main.ino"))
+        print(f"safety RX (GPIO18) is wired to camera GPIO{tx_pins[0]}" + ("" if tx_pins[0] == 1 else "   <- not GPIO1: set kLinkTxPin to this in SENSEWALK_cam_main.ino"))
     else:
         ok = False
-        print("The safety board heard nothing from any camera pin. Check: the wire to safety GPIO16 is connected, "
+        print("The safety board heard nothing from any camera pin. Check: the wire to safety GPIO18 is connected, "
               "GND is common, and TX goes to RX (the two signal wires must cross).")
     return 0 if ok else 1
 

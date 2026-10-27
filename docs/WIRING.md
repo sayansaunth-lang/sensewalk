@@ -20,7 +20,7 @@ Pin assignments are defined once in [`firmware/esp32/include/config.h`](../firmw
 | Haptic left | GPIO21 | 2N2222 base (left vibration motor) | PWM via `ledcWrite`, 0-255 intensity |
 | Haptic right | GPIO42 | 2N2222 base (right vibration motor) | |
 | UART2 TX | GPIO17 | Pi GPIO15 (RXD) | |
-| UART2 RX | GPIO16 | Pi GPIO14 (TXD) | |
+| UART2 RX | GPIO18 | Pi GPIO14 (TXD) | |
 | Common ground | — | Pi GND | **Non-negotiable** — a floating ground between the two boards is the single most common cause of a "flaky" UART link that looks like a software bug |
 
 ## Power chain
@@ -88,7 +88,7 @@ The camera board (firmware `SENSEWALK_cam_main`) runs person and pothole detecti
 
 | Camera board | Safety ESP32-S3 | Notes |
 |---|---|---|
-| `kLinkTxPin` (default GPIO1) | GPIO16 (UART2 RX) | 3.3 V logic both sides |
+| `kLinkTxPin` (default GPIO1) | GPIO18 (UART2 RX) | 3.3 V logic both sides |
 | `kLinkRxPin` (default GPIO2) | GPIO17 (UART2 TX) | |
 | GND | GND | common ground is required |
 | `kI2sBclkPin` (default GPIO47) | MAX98357A **BCLK** | I2S bit clock |

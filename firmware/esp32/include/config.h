@@ -77,7 +77,7 @@ constexpr int PIN_HAPTIC_RIGHT = 42;
 
 // UART2 to the Raspberry Pi (comms/PROTOCOL.md). Serial (UART0) is left
 // free for USB debug logging.
-constexpr int PIN_UART_RX2 = 16;
+constexpr int PIN_UART_RX2 = 18;  // was 16; moved to 18 to match the wiring (UART1 RX label on the dev board)
 constexpr int PIN_UART_TX2 = 17;
 
 // ---------------------------------------------------------------------------
