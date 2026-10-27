@@ -105,6 +105,24 @@ void commsTask(void*) {
     for (;;) {
         uartLink.poll();
         haptics.setIntensity(uartLink.lastHapticLeft(), uartLink.lastHapticRight());
+        {
+            // Log haptic commands from the camera board / Pi: on a change, and a count every 5 s.
+            static uint32_t lastCount = 0;
+            static uint8_t lastL = 0, lastR = 0;
+            static uint32_t lastReportMs = 0;
+            const uint32_t count = uartLink.hapticMessages();
+            if (count != lastCount && (uartLink.lastHapticLeft() != lastL || uartLink.lastHapticRight() != lastR)) {
+                Serial.printf("[comms] haptic command received: left=%u right=%u\n", uartLink.lastHapticLeft(),
+                              uartLink.lastHapticRight());
+            }
+            lastCount = count;
+            lastL = uartLink.lastHapticLeft();
+            lastR = uartLink.lastHapticRight();
+            if (millis() - lastReportMs > 5000) {
+                lastReportMs = millis();
+                Serial.printf("[comms] %lu haptic commands received so far\n", static_cast<unsigned long>(count));
+            }
+        }
 
         uint32_t now = millis();
         if (now - lastHeartbeatMs >= HEARTBEAT_INTERVAL_MS) {

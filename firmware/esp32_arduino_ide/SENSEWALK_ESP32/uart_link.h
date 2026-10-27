@@ -90,6 +90,8 @@ public:
 
     uint8_t lastHapticLeft() const { return hapticLeft_; }
     uint8_t lastHapticRight() const { return hapticRight_; }
+    // How many valid haptic commands have arrived (lets a test prove the wire from the camera board works).
+    uint32_t hapticMessages() const { return hapticMessages_; }
 
 private:
     void dispatch(const DecodedMessage& msg) {
@@ -102,6 +104,7 @@ private:
                 *sep = '\0';
                 hapticLeft_ = static_cast<uint8_t>(atoi(valueCopy));
                 hapticRight_ = static_cast<uint8_t>(atoi(sep + 1));
+                hapticMessages_++;
             }
         }
         // 'say_done' and any future Pi->ESP32 tags: extend here as needed.
@@ -115,6 +118,7 @@ private:
 
     uint8_t hapticLeft_ = 0;
     uint8_t hapticRight_ = 0;
+    uint32_t hapticMessages_ = 0;
 };
 
 }  // namespace sensewalk::comms
