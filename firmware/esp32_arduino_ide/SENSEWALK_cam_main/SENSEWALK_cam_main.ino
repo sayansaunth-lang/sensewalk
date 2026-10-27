@@ -399,14 +399,31 @@ void wireFinder() {
     Serial.println("[wirefind] START");
     for (int i = 0; i < kCount; i++) {
         Serial1.end();
+        // Raw activity first: count signal edges on the pin for 250 ms. A pin wired to the safety board's TX
+        // flips constantly; an unconnected pin does not.
+        pinMode(kPins[i], INPUT);
+        int edges = 0;
+        {
+            int prev = digitalRead(kPins[i]);
+            const uint32_t te = millis();
+            while (millis() - te < 250) {
+                const int now = digitalRead(kPins[i]);
+                if (now != prev) {
+                    edges++;
+                    prev = now;
+                }
+            }
+        }
         Serial1.begin(kLinkBaud, SERIAL_8N1, kPins[i], -1);
         char line[sensewalk::comms::MAX_LINE_LEN];
         size_t n = 0;
         int good = 0;
+        int raw = 0;
         const uint32_t t0 = millis();
         while (millis() - t0 < 800) {
             while (Serial1.available() > 0) {
                 const char c = static_cast<char>(Serial1.read());
+                raw++;
                 if (c == '\n') {
                     line[n] = '\0';
                     n = 0;
@@ -419,7 +436,7 @@ void wireFinder() {
             }
             delay(2);
         }
-        Serial.printf("[wirefind] RX GPIO%d: %d valid frames\n", kPins[i], good);
+        Serial.printf("[wirefind] RX GPIO%d: %d valid frames, %d raw bytes, %d edges\n", kPins[i], good, raw, edges);
     }
     uint16_t seq = 0;
     for (int i = 0; i < kCount; i++) {

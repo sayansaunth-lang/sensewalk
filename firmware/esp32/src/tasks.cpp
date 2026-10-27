@@ -120,7 +120,8 @@ void commsTask(void*) {
             lastR = uartLink.lastHapticRight();
             if (millis() - lastReportMs > 5000) {
                 lastReportMs = millis();
-                Serial.printf("[comms] %lu haptic commands received so far\n", static_cast<unsigned long>(count));
+                Serial.printf("[comms] %lu haptic commands received so far (%lu raw bytes on the UART2 RX pin)\n",
+                              static_cast<unsigned long>(count), static_cast<unsigned long>(uartLink.rawBytes()));
             }
         }
 

@@ -71,6 +71,7 @@ public:
 
         while (Serial2.available() > 0) {
             char c = static_cast<char>(Serial2.read());
+            rawBytes_++;
             if (c == '\n') {
                 inBuf_[inBufLen_] = '\0';
                 DecodedMessage msg = decodeLine(inBuf_);
@@ -92,6 +93,8 @@ public:
     uint8_t lastHapticRight() const { return hapticRight_; }
     // How many valid haptic commands have arrived (lets a test prove the wire from the camera board works).
     uint32_t hapticMessages() const { return hapticMessages_; }
+    // Every byte that arrived on UART2, valid or not: tells "nothing wired" apart from "wired but garbled".
+    uint32_t rawBytes() const { return rawBytes_; }
 
 private:
     void dispatch(const DecodedMessage& msg) {
@@ -119,6 +122,7 @@ private:
     uint8_t hapticLeft_ = 0;
     uint8_t hapticRight_ = 0;
     uint32_t hapticMessages_ = 0;
+    uint32_t rawBytes_ = 0;
 };
 
 }  // namespace sensewalk::comms
