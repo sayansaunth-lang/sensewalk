@@ -28,7 +28,8 @@
 //   flash/PSRAM, the USB serial chip, the SD-card socket or the RGB LED). Change the constants below if not.
 //
 // USB commands: 'c' -> one JPEG photo, 'g' -> the 96x96 grayscale person-model input,
-//               'k' -> the 64x64 grayscale pothole-model input, 'v' -> play every voice clip once (speaker test).
+//               'k' -> the 64x64 grayscale pothole-model input, 'v' -> play every voice clip once (speaker test),
+//               'w' -> wire finder: scan the free pins for the wires to the safety board (see wireFinder()).
 //
 // Board settings: ESP32S3 Dev Module, PSRAM = "OPI PSRAM", Flash Size 16MB, Partition Scheme
 // "16M Flash (3MB APP/9.9MB FATFS)" (the voice clips need the larger app partition).
@@ -231,12 +232,19 @@ void sendGray(const char* tag, const uint8_t* data, int size) {
     Serial.print("\n<<END>>\n");
 }
 
+// Set while wireFinder() has taken over Serial1, so the link tasks leave it alone.
+volatile bool gLinkBusy = false;
+
 // ---- tasks: haptic link to the safety board, and the buzzer ----
 void linkTask(void*) {
     uint16_t seq = 0;
     uint32_t lastPrintMs = 0;
     int lastPrinted = -1;
     for (;;) {
+        if (gLinkBusy) {
+            vTaskDelay(pdMS_TO_TICKS(50));
+            continue;
+        }
         const uint8_t alert = gAlert;
         const int level = alert == 2 ? kHapticPothole : (alert == 1 ? kHapticPerson : 0);
         char value[16];
@@ -344,6 +352,10 @@ void safetyRxTask(void*) {
     char line[sensewalk::comms::MAX_LINE_LEN];
     size_t n = 0;
     for (;;) {
+        if (gLinkBusy) {
+            vTaskDelay(pdMS_TO_TICKS(50));
+            continue;
+        }
         while (Serial1.available() > 0) {
             const char c = static_cast<char>(Serial1.read());
             if (c == '\n') {
@@ -370,6 +382,65 @@ void safetyRxTask(void*) {
         }
         vTaskDelay(pdMS_TO_TICKS(5));
     }
+}
+
+// 'w' on USB: find which camera-board pins the wires to the safety board are on, whatever pins they are.
+//   RX scan: listens on each free pin for valid frames from the safety board (its TX stream), so the pin
+//            that reports frames is the one wired to the safety board's GPIO17.
+//   TX scan: sends a marked haptic command out of each free pin in turn (left level 100 + index); the
+//            safety board logs "haptic command received: left=1xx", so the level that arrives names the pin
+//            wired to the safety board's GPIO16. Run test/system_check.py --wirefind to read both logs.
+// The pins are only listened to or driven with a 3.3 V serial signal for about a second each.
+void wireFinder() {
+    static const int kPins[] = {1, 2, 14, 21, 38, 39, 40, 41, 42, 47, 48};
+    constexpr int kCount = sizeof(kPins) / sizeof(kPins[0]);
+    gLinkBusy = true;
+    vTaskDelay(pdMS_TO_TICKS(150));
+    Serial.println("[wirefind] START");
+    for (int i = 0; i < kCount; i++) {
+        Serial1.end();
+        Serial1.begin(kLinkBaud, SERIAL_8N1, kPins[i], -1);
+        char line[sensewalk::comms::MAX_LINE_LEN];
+        size_t n = 0;
+        int good = 0;
+        const uint32_t t0 = millis();
+        while (millis() - t0 < 800) {
+            while (Serial1.available() > 0) {
+                const char c = static_cast<char>(Serial1.read());
+                if (c == '\n') {
+                    line[n] = '\0';
+                    n = 0;
+                    if (sensewalk::comms::decodeLine(line).valid) good++;
+                } else if (n < sizeof(line) - 1) {
+                    line[n++] = c;
+                } else {
+                    n = 0;
+                }
+            }
+            delay(2);
+        }
+        Serial.printf("[wirefind] RX GPIO%d: %d valid frames\n", kPins[i], good);
+    }
+    uint16_t seq = 0;
+    for (int i = 0; i < kCount; i++) {
+        Serial1.end();
+        Serial1.begin(kLinkBaud, SERIAL_8N1, -1, kPins[i]);
+        const int level = 100 + i;
+        Serial.printf("[wirefind] TX GPIO%d sending level %d\n", kPins[i], level);
+        char value[16];
+        snprintf(value, sizeof(value), "%d|%d", level, level);
+        char line[sensewalk::comms::MAX_LINE_LEN];
+        for (int k = 0; k < 8; k++) {
+            const size_t len = sensewalk::comms::encodeLine(line, sizeof(line), "haptic", value, seq++);
+            if (len > 0) Serial1.write(reinterpret_cast<const uint8_t*>(line), len);
+            delay(120);
+        }
+    }
+    Serial1.end();
+    Serial1.setRxBufferSize(1024);
+    Serial1.begin(kLinkBaud, SERIAL_8N1, kLinkRxPin, kLinkTxPin);
+    Serial.println("[wirefind] DONE (link pins restored)");
+    gLinkBusy = false;
 }
 
 // 'v' on USB: play every clip once, so you can check the speaker and the wiring.
@@ -439,6 +510,7 @@ void loop() {
     if (Serial.available() > 0) cmd = Serial.read();
     if (cmd == 'c') sendJpeg(fb);
     if (cmd == 'v') speakerTest();
+    if (cmd == 'w') wireFinder();
 
     toGray(fb, kPersonModelSize, gray96);
     toGray(fb, kPotholeModelSize, gray64);

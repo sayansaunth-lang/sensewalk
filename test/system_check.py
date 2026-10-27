@@ -94,10 +94,10 @@ def main() -> int:
         results.append((name, "PASS" if ok else ("FAIL" if exercised else "NOT EXERCISED"), detail))
 
     # sanity: both boards booted our firmware
-    s_boot = any("SIMULATED SENSORS" in t for _, t in s)
-    c_ready = any(t.startswith("Ready.") for _, t in c)
-    check("safety board running the simulated-sensor firmware", s_boot, "saw the SIMULATED SENSORS banner" if s_boot else "no banner: flash SENSEWALK_ESP32_SIM to COM7")
-    check("camera board running and ready", c_ready, "saw 'Ready.'" if c_ready else "no 'Ready.': flash SENSEWALK_cam_main to the camera board")
+    s_boot = any("[sim]" in t for _, t in s)  # the board may have booted before we opened its port, so look for its normal output
+    c_ready = any(t.startswith("t=") for _, t in c)
+    check("safety board running the simulated-sensor firmware", s_boot, "saw its [sim] scenario output" if s_boot else "no [sim] output: flash SENSEWALK_ESP32_SIM to the safety board")
+    check("camera board running and ready", c_ready, "saw its per-frame detection lines" if c_ready else "no detection lines: flash SENSEWALK_cam_main (the _cdc build for the native-USB connector)")
 
     # 1. safety -> camera wire
     frames = last_int(r"\[safety link\] (\d+) valid frames", c)
