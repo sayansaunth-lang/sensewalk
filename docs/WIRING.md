@@ -91,9 +91,9 @@ The camera board (firmware `SENSEWALK_cam_main`) runs person and pothole detecti
 | `kLinkTxPin` (default GPIO1) | GPIO18 (UART2 RX) | 3.3 V logic both sides |
 | `kLinkRxPin` (default GPIO2) | GPIO17 (UART2 TX) | |
 | GND | GND | common ground is required |
-| `kI2sBclkPin` (default GPIO47) | MAX98357A **BCLK** | I2S bit clock |
-| `kI2sLrcPin` (default GPIO21) | MAX98357A **LRC** | I2S word select |
-| `kI2sDinPin` (default GPIO14) | MAX98357A **DIN** | I2S data |
+| `kI2sBclkPin` (default GPIO40) | MAX98357A **BCLK** | I2S bit clock |
+| `kI2sLrcPin` (default GPIO41) | MAX98357A **LRC** | I2S word select |
+| `kI2sDinPin` (default GPIO42) | MAX98357A **DIN** | I2S data |
 | 5 V (from the power bank / the board's 5V pin) | MAX98357A **VIN** | powered from 5 V, **not** from a GPIO; keep leads short |
 | GND | MAX98357A **GND** | |
 | MAX98357A speaker terminals | 4-8 ohm speaker (about 3 W) | leave GAIN and SD unconnected (9 dB gain, (L+R)/2 mixing) |

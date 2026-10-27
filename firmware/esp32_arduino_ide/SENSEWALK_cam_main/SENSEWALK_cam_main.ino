@@ -58,9 +58,9 @@ namespace {
 // ---- pins (see the header comment: confirm against your board) ----
 constexpr int kLinkTxPin = 1;     // -> safety board GPIO18
 constexpr int kLinkRxPin = 2;     // <- safety board GPIO17
-constexpr int kI2sBclkPin = 47;   // MAX98357A BCLK
-constexpr int kI2sLrcPin = 21;    // MAX98357A LRC (word select)
-constexpr int kI2sDinPin = 14;    // MAX98357A DIN
+constexpr int kI2sBclkPin = 40;   // MAX98357A BCLK (wired to GPIO40)
+constexpr int kI2sLrcPin = 41;    // MAX98357A LRC (word select) (wired to GPIO41)
+constexpr int kI2sDinPin = 42;    // MAX98357A DIN (wired to GPIO42)
 constexpr int kBuzzerPin = -1;    // optional piezo beep; -1 = none
 constexpr uint32_t kLinkBaud = 115200;
 constexpr int kVolumePercent = 70;  // 0-100, software volume before the amplifier's own gain
