@@ -115,6 +115,9 @@ jobs:
           done
           arduino-cli compile --fqbn esp32:esp32:esp32s3:PSRAM=opi,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB --export-binaries firmware/esp32_arduino_ide/SENSEWALK_cam_main
           cp firmware/esp32_arduino_ide/SENSEWALK_cam_main/build/*/SENSEWALK_cam_main.ino.merged.bin flash/SENSEWALK_cam_main_opi.merged.bin
+          # Same firmware with USB-CDC serial: for boards plugged into the native-USB connector (no serial chip)
+          arduino-cli compile --fqbn esp32:esp32:esp32s3:PSRAM=opi,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,CDCOnBoot=cdc --export-binaries firmware/esp32_arduino_ide/SENSEWALK_cam_main
+          cp firmware/esp32_arduino_ide/SENSEWALK_cam_main/build/*/SENSEWALK_cam_main.ino.merged.bin flash/SENSEWALK_cam_main_cdc.merged.bin
       - name: Upload flashable binaries
         uses: actions/upload-artifact@v4
         with:
