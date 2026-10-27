@@ -216,12 +216,9 @@ def main() -> None:
 
     model.load_state_dict(best[1])
     pv, pt = predict(model, xv), predict(model, xt)
-    # threshold: the lowest one that still gives >= 85% precision on VALIDATION (a warning that cries wolf is ignored)
-    chosen = 0.5
-    for thr in np.linspace(0.3, 0.95, 66):
-        if metrics(pv, yv, thr)["precision"] >= 0.85:
-            chosen = float(thr)
-            break
+    # threshold: the validation score that leaves about 5% of NON-pothole views above it (a warning that cries
+    # wolf gets ignored). Chosen on validation views only, then reported on the untouched test views.
+    chosen = float(np.quantile(pv[yv == 0], 0.95))
     result = {
         "width": args.width, "parameters": n_params, "best_val_auc": best[0],
         "chosen_threshold": chosen,
